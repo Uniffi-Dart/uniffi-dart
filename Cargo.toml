@@ -67,9 +67,7 @@ members = [
 exclude = [
     "fixtures/coverall",
     "fixtures/custom_types",
-    "fixtuers/callbacks",
     "fixtuers/dispose",
-    "fixtuers/dart_async",
 ]
 
 [workspace.dependencies]
