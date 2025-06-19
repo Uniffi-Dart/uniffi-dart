@@ -145,8 +145,29 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
                 return $cls_name._(ptr);
             }
 
+            static Pointer<Void> lower($cls_name value) {
+                return value.uniffiClonePointer();
+            }
+
             Pointer<Void> uniffiClonePointer() {
                 return rustCall((status) => $lib_instance.$ffi_object_clone_name(_ptr, status));
+            }
+
+            // A Rust pointer is 8 bytes
+            static int allocationSize($cls_name value) {
+                return 8;
+            }
+
+            static LiftRetVal<$cls_name> read(Uint8List buf) {
+                final handle = buf.buffer.asByteData(buf.offsetInBytes).getInt64(0);
+                final pointer = Pointer<Void>.fromAddress(handle);
+                return LiftRetVal($cls_name.lift(pointer), 8);
+            }
+
+            static int write($cls_name value, Uint8List buf) {
+                final handle = lower(value);
+                buf.buffer.asByteData(buf.offsetInBytes).setInt64(0, handle.address);
+                return 8;
             }
 
             void dispose() {
