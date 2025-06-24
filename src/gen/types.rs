@@ -6,7 +6,7 @@ use uniffi_bindgen::interface::AsType;
 use uniffi_bindgen::{interface::Type, ComponentInterface};
 
 
-use super::render::{AsRenderable, Renderer, TypeHelperRenderer, Renderable};
+use super::render::{AsRenderable, Renderable, Renderer, TypeHelperRenderer};
 use super::{enums, functions, objects, oracle::AsCodeType, records};
 use crate::gen::DartCodeOracle;
 
@@ -137,7 +137,7 @@ impl Renderer<(FunctionDefinition, dart::Tokens)> for TypeHelpersRenderer<'_> {
                 final int errorCode;
                 final String? panicMessage;
 
-                const UniffiInternalError(this.errorCode, this.panicMessage);
+                const UniffiInternalError(int this.errorCode, String this.panicMessage);
 
                 static UniffiInternalError panicked(String message) {
                 return UniffiInternalError(rustPanic, message);
@@ -174,7 +174,7 @@ impl Renderer<(FunctionDefinition, dart::Tokens)> for TypeHelpersRenderer<'_> {
             const int CALL_ERROR = 1;
             const int CALL_UNEXPECTED_ERROR = 2;
 
-            class RustCallStatus extends Struct {
+            final class RustCallStatus extends Struct {
                 @Int8()
                 external int code;
 
@@ -221,7 +221,7 @@ impl Renderer<(FunctionDefinition, dart::Tokens)> for TypeHelpersRenderer<'_> {
                 Exception lift(RustBuffer errorBuf);
             }
 
-            class RustBuffer extends Struct {
+            final class RustBuffer extends Struct {
                 @Uint64()
                 external int capacity;
 
@@ -276,7 +276,7 @@ impl Renderer<(FunctionDefinition, dart::Tokens)> for TypeHelpersRenderer<'_> {
                 return RustBuffer.fromBytes(bytes.ref);
             }
 
-            class ForeignBytes extends Struct {
+            final class ForeignBytes extends Struct {
                 @Int32()
                 external int len;
                 external Pointer<Uint8> data;
