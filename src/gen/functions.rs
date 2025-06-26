@@ -45,12 +45,24 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
 
         )
     } else {
-        quote!(
-            $ret $(DartCodeOracle::fn_name(func.name()))($args) {
-                return rustCall((status) => $lifter($(DartCodeOracle::find_lib_instance()).$(func.ffi_func().name())(
-                    $(for arg in &func.arguments() => $(lower_arg(arg)),) status
-                )));
-            }
-        )
+        if ret == quote!(void) {
+            quote!(
+                $ret $(DartCodeOracle::fn_name(func.name()))($args) {
+                    return rustCall((status) {
+                        $(DartCodeOracle::find_lib_instance()).$(func.ffi_func().name())(
+                            $(for arg in &func.arguments() => $(lower_arg(arg)),) status
+                        );
+                    });
+                }
+            )
+        } else {
+            quote!(
+                $ret $(DartCodeOracle::fn_name(func.name()))($args) {
+                    return rustCall((status) => $lifter($(DartCodeOracle::find_lib_instance()).$(func.ffi_func().name())(
+                        $(for arg in &func.arguments() => $(lower_arg(arg)),) status
+                    )));
+                }
+            )
+        }
     }
 }
