@@ -68,7 +68,8 @@ macro_rules! impl_renderable_for_compound {
                                 if (ByteData.view(buf.buffer, buf.offsetInBytes).getInt8(0) == 0){
                                     return LiftRetVal(null, 1);
                                 }
-                                return $inner_cl_converter_name.read(Uint8List.view(buf.buffer, buf.offsetInBytes + 1)).copyWithOffset(1);
+                                final result = $inner_cl_converter_name.read(Uint8List.view(buf.buffer, buf.offsetInBytes + 1)); 
+                                return LiftRetVal<$type_label>(result.value, result.bytesRead + 1);
                             }
 
 
