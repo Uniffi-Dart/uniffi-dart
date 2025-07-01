@@ -62,6 +62,7 @@ pub fn generate_callback_interface(
 ) -> dart::Tokens {
     let cls_name = &DartCodeOracle::class_name(callback_name);
     let ffi_conv_name = &DartCodeOracle::class_name(ffi_converter_name);
+    let init_fn_name = &format!("init{}VTable", callback_name);
 
     let tokens = quote! {
         // This is the abstract class to be implemented
@@ -74,13 +75,22 @@ pub fn generate_callback_interface(
         // This is the type helper to convert from FFI to Dart
         class $ffi_conv_name {
             static final _handleMap = UniffiHandleMap<$cls_name>();
+            static bool _vtableInitialized = false;
 
             static $cls_name lift(int handle) {
                 return _handleMap.get(handle);
             }
             
             static int lower($cls_name value) {
+                _ensureVTableInitialized();
                 return _handleMap.insert(value);
+            }
+
+            static void _ensureVTableInitialized() {
+                if (!_vtableInitialized) {
+                    $init_fn_name();
+                    _vtableInitialized = true;
+                }
             }
         
             static LiftRetVal<$cls_name> read(Uint8List buf) {
