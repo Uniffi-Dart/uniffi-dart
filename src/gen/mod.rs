@@ -162,9 +162,9 @@ impl<'a> DartWrapper<'a> {
                 static final DynamicLibrary _dylib = _open();
 
                 static DynamicLibrary _open() {
-                  if (Platform.isAndroid) return DynamicLibrary.open($(format!("\"lib{libname}.so\"")));
+                  if (Platform.isAndroid) return DynamicLibrary.open($(format!("\"${{Directory.current.path}}/lib{libname}.so\"")));
                   if (Platform.isIOS) return DynamicLibrary.executable();
-                  if (Platform.isLinux) return DynamicLibrary.open($(format!("\"lib{libname}.so\"")));
+                  if (Platform.isLinux) return DynamicLibrary.open($(format!("\"${{Directory.current.path}}/lib{libname}.so\"")));
                   if (Platform.isMacOS) return DynamicLibrary.open($(format!("\"lib{libname}.dylib\"")));
                   if (Platform.isWindows) return DynamicLibrary.open($(format!("\"{libname}.dll\"")));
                   throw UnsupportedError("Unsupported platform: ${Platform.operatingSystem}");
