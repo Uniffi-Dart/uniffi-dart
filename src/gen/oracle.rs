@@ -2,6 +2,7 @@ use genco::lang::dart;
 use genco::quote;
 use heck::{ToLowerCamelCase, ToUpperCamelCase};
 use uniffi_bindgen::interface::ffi::ExternalFfiMetadata;
+use uniffi_bindgen::interface::{Argument, ObjectImpl};
 
 
 use crate::gen::CodeType;
@@ -531,6 +532,17 @@ impl DartCodeOracle {
             quote!(bool_arg$(arg_idx))
         } else {
             quote!(arg$(arg_idx))
+        }
+    }
+
+    /// Lower argument with special handling for callback traits
+    pub fn lower_arg_with_callback_handling(arg: &Argument) -> dart::Tokens {
+        let base_lower = Self::type_lower_fn(&arg.as_type(), quote!($(Self::var_name(arg.name()))));
+        match arg.as_type() {
+            Type::Object { imp, .. } if imp == ObjectImpl::CallbackTrait => {
+                quote!(Pointer<Void>.fromAddress($(base_lower)))
+            }
+            _ => base_lower
         }
     }
 

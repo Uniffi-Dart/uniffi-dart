@@ -7,6 +7,7 @@ use crate::gen::oracle::{AsCodeType, DartCodeOracle};
 use crate::gen::render::AsRenderable;
 use crate::gen::render::{Renderable, TypeHelperRenderer};
 
+// Removed problematic context structure - will implement simpler improvements
 
 #[derive(Debug)]
 pub struct CallbackInterfaceCodeType {
@@ -43,7 +44,9 @@ impl Renderable for CallbackInterfaceCodeType {
         let interface = generate_callback_interface(callback.name(), &callback.as_codetype().ffi_converter_name(), &callback.methods(), type_helper);
         let vtable_interface = generate_callback_vtable_interface(callback.name(), &callback.methods());
         let functions = generate_callback_functions(callback.name(), &callback.methods(), type_helper);
-        let vtable_init = generate_callback_interface_vtable_init_function(callback.name(), &callback.methods(), "callbacks");
+        let namespace = type_helper.get_ci().namespace_for_type(&callback.as_type())
+            .unwrap_or_else(|_| type_helper.get_ci().namespace());
+        let vtable_init = generate_callback_interface_vtable_init_function(callback.name(), &callback.methods(), namespace);
         
         quote! {
             $interface

@@ -1,8 +1,8 @@
 use genco::prelude::*;
 use crate::gen::callback_interface::{generate_callback_functions, generate_callback_interface, generate_callback_interface_vtable_init_function, generate_callback_vtable_interface};
 use crate::gen::CodeType;
-use uniffi_bindgen::backend::{Literal, Type};
-use uniffi_bindgen::interface::{Argument, AsType, Method, Object, ObjectImpl};
+use uniffi_bindgen::backend::Literal;
+use uniffi_bindgen::interface::{AsType, Method, Object, ObjectImpl};
 
 use crate::gen::oracle::{AsCodeType, DartCodeOracle};
 use crate::gen::render::AsRenderable;
@@ -196,13 +196,7 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
         (quote!(void), quote!((_) {}))
     };
 
-    fn lower_arg(arg: &Argument) -> dart::Tokens {
-        let lower_arg = DartCodeOracle::type_lower_fn(&arg.as_type(), quote!($(DartCodeOracle::var_name(arg.name())))); 
-        match arg.as_type() {
-            Type::Object { imp, .. } if imp == ObjectImpl::CallbackTrait => quote!(Pointer<Void>.fromAddress($(lower_arg))),
-            _ => lower_arg
-        }
-    }
+    // Use centralized callback-aware argument lowering
 
     if func.is_async() {
         quote!(
@@ -210,7 +204,7 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
                 return uniffiRustCallAsync(
                   () => $(DartCodeOracle::find_lib_instance()).$(func.ffi_func().name())(
                     uniffiClonePointer(),
-                    $(for arg in &func.arguments() => $(lower_arg(arg)),)
+                    $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
                   ),
                   $(DartCodeOracle::async_poll(func, type_helper.get_ci())),
                   $(DartCodeOracle::async_complete(func, type_helper.get_ci())),
@@ -227,7 +221,7 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
                     return rustCall((status) {
                         $(DartCodeOracle::find_lib_instance()).$(func.ffi_func().name())(
                             uniffiClonePointer(),
-                            $(for arg in &func.arguments() => $(lower_arg(arg)),) status
+                            $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
                         );
                     });
                 }
@@ -237,7 +231,7 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
                 $ret $(DartCodeOracle::fn_name(func.name()))($args) {
                     return rustCall((status) => $lifter($(DartCodeOracle::find_lib_instance()).$(func.ffi_func().name())(
                         uniffiClonePointer(),
-                        $(for arg in &func.arguments() => $(lower_arg(arg)),) status
+                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
                     )));
                 }
             )
