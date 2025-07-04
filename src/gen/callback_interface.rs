@@ -282,6 +282,11 @@ pub fn generate_callback_interface_vtable_init_function(callback_name: &str, met
         late final Pointer<$vtable_name> $(&vtable_static_instance_name);
 
         void $init_fn_name() {
+            // Make initialization idempotent - return early if already initialized
+            if (FfiConverterCallbackInterface$(DartCodeOracle::class_name(callback_name))._vtableInitialized) {
+                return;
+            }
+
             $(&vtable_static_instance_name) = calloc<$vtable_name>();
             $(for m in methods {
                 $(&vtable_static_instance_name).ref.$(DartCodeOracle::fn_name(m.name())) = $(DartCodeOracle::fn_name(callback_name))$(DartCodeOracle::class_name(m.name()))Pointer;
@@ -294,6 +299,9 @@ pub fn generate_callback_interface_vtable_init_function(callback_name: &str, met
                 );
                 checkCallStatus(NullRustCallStatusErrorHandler(), status);
             });
+
+            // Update the flag to prevent re-initialization
+            FfiConverterCallbackInterface$(DartCodeOracle::class_name(callback_name))._vtableInitialized = true;
         }
     }
 }
