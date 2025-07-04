@@ -1,0 +1,20 @@
+[package]
+name = "external_types_provider"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "external_types_provider"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+uniffi = { workspace = true }
+
+[build-dependencies]
+uniffi-dart = { path = "../../", features = ["build"] }
+
+[dev-dependencies]
+uniffi-dart = { path = "../../", features = ["bindgen-tests"] }
+uniffi = { workspace = true, features = ["bindgen-tests"] }
+anyhow = "1" 

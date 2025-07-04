@@ -1,0 +1,32 @@
+namespace external_types_provider {
+    // Functions to create and work with our types
+    ExternalRecord create_external_record(string name, i32 value);
+    ExternalEnum get_external_enum(i32 variant);
+    ExternalObject create_external_object(string name);
+    
+    // Test functions
+    string external_record_to_string(ExternalRecord record);
+    i32 external_enum_to_int(ExternalEnum enum_val);
+    string external_object_get_name(ExternalObject obj);
+};
+
+// Record/Dictionary type for external use
+dictionary ExternalRecord {
+    string name;
+    i32 value;
+    boolean is_active;
+};
+
+// Enum type for external use
+enum ExternalEnum {
+    "First",
+    "Second", 
+    "Third",
+};
+
+// Object/Interface type for external use
+interface ExternalObject {
+    string get_name();
+    void set_name(string name);
+    i32 calculate(i32 input);
+}; 

@@ -61,7 +61,9 @@ members = [
     ".",
 
     # for testing
-    "fixtures/*", "uniffi_dart_macro",
+    "fixtures/*", 
+    "fixtures/external_types_provider/consumer",
+    "uniffi_dart_macro",
 ]
 # Ignore a few tests for now
 exclude = [

@@ -1,0 +1,6 @@
+[bindings.dart]
+package_name = "external_types_consumer"
+
+[bindings.dart.external_packages]
+# Map the external crate to its Dart package
+external_types_provider = "package:external_types_provider/external_types_provider.dart" 

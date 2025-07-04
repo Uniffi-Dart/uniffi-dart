@@ -1,0 +1,29 @@
+// External types from the provider crate using UniFFI 0.28 syntax
+
+// External record/dictionary type
+[External="external_types_provider"]
+typedef extern ExternalRecord;
+
+// External enum type  
+[External="external_types_provider"]
+typedef extern ExternalEnum;
+
+// External interface/object type
+[ExternalInterface="external_types_provider"]
+typedef extern ExternalObject;
+
+namespace external_types_consumer {
+    // Functions that work with external types
+    ExternalRecord create_and_modify_external_record(string name, i32 value);
+    ExternalEnum cycle_external_enum(ExternalEnum input);
+    ExternalObject wrap_external_object(ExternalObject obj, string prefix);
+    
+    // Functions that demonstrate external type usage
+    string process_external_record(ExternalRecord record);
+    i32 process_external_enum(ExternalEnum enum_val);
+    string process_external_object(ExternalObject obj, i32 multiplier);
+    
+    // Complex scenarios with external types
+    sequence<ExternalRecord> create_external_record_list(i32 count);
+    ExternalRecord? find_external_record_by_value(sequence<ExternalRecord> records, i32 target_value);
+}; 
