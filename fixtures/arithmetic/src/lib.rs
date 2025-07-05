@@ -1,4 +1,13 @@
 use uniffi;
+use thiserror;
+
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+pub enum MathError {
+    #[error("Division by zero")]
+    DivisionByZero,
+    #[error("Invalid input: {message}")]
+    InvalidInput { message: String },
+}
 
 #[uniffi::export]
 pub fn add(left: u32, right: u32) -> u32 {
@@ -68,6 +77,15 @@ pub fn add_f32(left: f32, right: f32) -> Option<f32> {
 #[uniffi::export]
 pub fn add_f64(left: f64, right: f64) -> Option<f64> {
     Some(left + right)
+}
+
+#[uniffi::export]
+pub fn divide_by_zero(numerator: u64, denominator: u64) -> Result<u64, MathError> {
+    if denominator == 0 {
+        Err(MathError::DivisionByZero)
+    } else {
+        Ok(numerator / denominator)
+    }
 }
 
 macro_rules! get_back {

@@ -200,10 +200,12 @@ impl Renderer<(FunctionDefinition, dart::Tokens)> for TypeHelpersRenderer<'_> {
                 }
             }
 
-            T rustCall<T>(T Function(Pointer<RustCallStatus>) callback) {
+            T rustCall<T>(T Function(Pointer<RustCallStatus>) callback, [UniffiRustCallStatusErrorHandler? errorHandler]) {
                 final status = calloc<RustCallStatus>();
                 try {
-                return callback(status);
+                    final result = callback(status);
+                    checkCallStatus(errorHandler ?? NullRustCallStatusErrorHandler(), status);
+                    return result;
                 } finally {
                 calloc.free(status);
                 }

@@ -2,6 +2,7 @@ use genco::prelude::*;
 use crate::gen::CodeType;
 use uniffi_bindgen::backend::Literal;
 use uniffi_bindgen::interface::{AsType, Enum, Field};
+use heck::ToLowerCamelCase;
 
 use super::oracle::{AsCodeType, DartCodeOracle};
 use super::render::{AsRenderable, Renderable, TypeHelperRenderer};
@@ -178,6 +179,24 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             quote!()
         };
 
+        // For error enums, also generate an error handler
+        let error_handler_class = if implements_exception != quote!() {
+            let error_handler_name = format!("{}ErrorHandler", dart_cls_name);
+            let instance_name = dart_cls_name.to_lower_camel_case();
+            quote! {
+                class $(&error_handler_name) extends UniffiRustCallStatusErrorHandler {
+                    @override
+                    Exception lift(RustBuffer errorBuf) {
+                        return $ffi_converter_name.lift(errorBuf);
+                    }
+                }
+
+                final $(&error_handler_name) $(instance_name)ErrorHandler = $(&error_handler_name)();
+            }
+        } else {
+            quote!()
+        };
+
         quote! {
             abstract class $dart_cls_name $implements_exception {
                 RustBuffer lower();
@@ -216,6 +235,8 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             }
 
             $(variants)
+
+            $error_handler_class
         }
     }
 }

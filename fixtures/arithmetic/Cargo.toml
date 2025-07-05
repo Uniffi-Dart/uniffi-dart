@@ -12,6 +12,7 @@ crate-type = ["lib", "cdylib"]
 
 [dependencies]
 uniffi = { workspace = true }
+thiserror = "2.0"
 
 [build-dependencies]
 uniffi-dart = { path = "../../", features = ["build"] }

@@ -65,4 +65,17 @@ void main() {
   test('get back f64', () {
     expect(getBackF64(4.9), 4.9);
   });
+
+  test('divide by zero - success case', () {
+    expect(divideByZero(10, 2), 5);
+  });
+
+  test('divide by zero - error case', () {
+    expect(
+        () => divideByZero(10, 0), throwsA(isA<DivisionByZeroMathException>()));
+  });
+
+  test('divide by zero - specific error type', () {
+    expect(() => divideByZero(10, 0), throwsA(isA<MathException>()));
+  });
 }
