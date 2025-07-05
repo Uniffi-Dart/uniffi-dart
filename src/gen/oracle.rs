@@ -71,6 +71,15 @@ impl DartCodeOracle {
         format!("Uniffi{}", name.to_upper_camel_case())
     }
 
+    /// Helper method to generate external Dart type labels.
+    fn external_type_label(name: &str) -> String {
+        format!("External{}", name.to_upper_camel_case())
+    }
+
+    /// Helper method to generate external native type labels.
+    fn external_native_type_label(name: &str) -> String {
+        format!("Pointer<{}>", Self::external_type_label(name))
+    }
 
     /// Get the idiomatic Dart rendering of an exception name
     // pub fn error_name(nm: &str) -> String {
