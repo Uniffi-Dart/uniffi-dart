@@ -102,6 +102,16 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
         } else {
             quote!($cls_name.$(DartCodeOracle::fn_name(constructor_name)))
         };
+        
+        // Check if function can throw errors
+        let error_handler = if let Some(error_type) = constructor.throws_type() {
+            let error_name = DartCodeOracle::class_name(error_type.name().unwrap_or("UnknownError"));
+            // Use the consistent Exception naming for error handlers
+            let handler_name = format!("{}ErrorHandler", error_name.to_lower_camel_case());
+            quote!($(handler_name))
+        } else {
+            quote!(null)
+        };
 
         let dart_params = quote!($(for arg in constructor.arguments() =>
             $(DartCodeOracle::dart_type_label(Some(&arg.as_type()))) $(DartCodeOracle::var_name(arg.name())),
@@ -121,7 +131,8 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
             $dart_constructor_decl($dart_params) : _ptr = rustCall((status) =>
                 $lib_instance.$ffi_func_name(
                     $ffi_call_args status
-                )
+                ),
+                $error_handler
             ) {
                  _$finalizer_cls_name.attach(this, _ptr, detach: this);
             }
