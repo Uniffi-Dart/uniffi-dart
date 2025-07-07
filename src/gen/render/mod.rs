@@ -20,6 +20,8 @@ pub trait TypeHelperRenderer {
 
 pub trait Renderable {
     fn render_type(&self, ty: &Type, type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
+        use super::oracle::DartCodeOracle;
+        
         let type_name = match ty {
             Type::UInt8
             | Type::Int8
@@ -44,7 +46,7 @@ pub trait Renderable {
             } => {
                 quote!(Map<$(&self.render_type(key_type, type_helper)), $(&self.render_type(value_type, type_helper))>)
             }
-            Type::Enum { name, .. } => quote!($name),
+            Type::Enum { name, .. } => quote!($(DartCodeOracle::class_name(name))),
             Type::Record { name, .. } => quote!($name),
             Type::Custom { name, .. } => quote!($name),
             Type::Duration => quote!(Duration),

@@ -22,21 +22,11 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
 
     // Check if function can throw errors
     let error_handler = if let Some(error_type) = func.throws_type() {
-        // Function can throw errors - use the appropriate error handler
-        let error_name = match error_type {
-            uniffi_bindgen::interface::Type::Enum { name, .. } => name,
-            uniffi_bindgen::interface::Type::Object { name, .. } => name,
-            _ => {
-                // For other error types, try to get the name from the type
-                "UnknownError"
-            }
-        };
-        // Use the same naming convention as in enums.rs
-        let dart_cls_name = DartCodeOracle::class_name(error_name);
-        let error_handler_instance = format!("{}ErrorHandler", dart_cls_name.to_lower_camel_case());
-        quote!($(error_handler_instance))
+        let error_name = DartCodeOracle::class_name(error_type.name().unwrap_or("UnknownError"));
+        // Use the consistent Exception naming for error handlers
+        let handler_name = format!("{}ErrorHandler", error_name.to_lower_camel_case());
+        quote!($(handler_name))
     } else {
-        // Function doesn't throw errors - use null handler
         quote!(null)
     };
 

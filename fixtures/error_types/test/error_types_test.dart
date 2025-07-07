@@ -8,8 +8,8 @@ void main() {
         oops();
         fail('Must have failed');
       } on ErrorInterface catch (e) {
-        expect(e.toString(),
-            'because uniffi told me so\n\nCaused by:\n    oops');
+        expect(
+            e.toString(), 'because uniffi told me so\n\nCaused by:\n    oops');
         expect(e.chain().length, 2);
         expect(e.link(0), 'because uniffi told me so');
       }
@@ -20,8 +20,8 @@ void main() {
         oopsNowrap();
         fail('Must have failed');
       } on ErrorInterface catch (e) {
-        expect(e.toString(),
-            'because uniffi told me so\n\nCaused by:\n    oops');
+        expect(
+            e.toString(), 'because uniffi told me so\n\nCaused by:\n    oops');
         expect(e.chain().length, 2);
         expect(e.link(0), 'because uniffi told me so');
       }
@@ -46,66 +46,65 @@ void main() {
       try {
         throwRich('oh no');
         fail('Must have failed');
-      } on RichError catch (e) {
-        expect(e.toString(), 'RichError: "oh no"');
+      } on RichException catch (e) {
+        expect(e.toString(), 'RichException: "oh no"');
       }
     });
 
     group('Enum Error Tests', () {
       test('Oops variant', () {
-        expect(() => oops_enum(0), throwsA(isA<Error>()));
+        expect(() => oopsEnum(0), throwsA(isA<Exception>()));
         try {
-          oops_enum(0);
+          oopsEnum(0);
         } catch (e) {
           expect(e.toString(), 'uniffi.error_types.Exception\$Oops: ');
         }
       });
 
       test('Value variant', () {
-        expect(() => oops_enum(1), throwsA(isA<Error>()));
+        expect(() => oopsEnum(1), throwsA(isA<Exception>()));
         try {
-          oops_enum(1);
+          oopsEnum(1);
         } catch (e) {
-          expect(e.toString(),
-              'uniffi.error_types.Exception\$Value: value=value');
+          expect(
+              e.toString(), 'uniffi.error_types.Exception\$Value: value=value');
         }
       });
 
       test('IntValue variant', () {
-        expect(() => oops_enum(2), throwsA(isA<Error>()));
+        expect(() => oopsEnum(2), throwsA(isA<Exception>()));
         try {
-          oops_enum(2);
+          oopsEnum(2);
         } catch (e) {
-          expect(e.toString(), 'uniffi.error_types.Exception\$IntValue: value=2');
+          expect(
+              e.toString(), 'uniffi.error_types.Exception\$IntValue: value=2');
         }
       });
 
       test('FlatInnerError variant with CaseA', () {
-        expect(() => oops_enum(3), throwsA(isA<Error.FlatInnerError>()));
+        expect(() => oopsEnum(3), throwsA(isA<Exception>()));
         try {
-          oops_enum(3);
+          oopsEnum(3);
         } catch (e) {
-          expect(
-              e.toString(),
+          expect(e.toString(),
               'uniffi.error_types.Exception\$FlatInnerException: error=uniffi.error_types.FlatInner\$CaseA: inner');
         }
       });
 
       test('FlatInnerError variant with CaseB', () {
-        expect(() => oops_enum(4), throwsA(isA<Error.FlatInnerError>()));
+        expect(() => oopsEnum(4), throwsA(isA<Exception>()));
         try {
-          oops_enum(4);
+          oopsEnum(4);
         } catch (e) {
-          expect(
-              e.toString(),
+          expect(e.toString(),
               'uniffi.error_types.Exception\$FlatInnerException: error=uniffi.error_types.FlatInner\$CaseB: NonUniffiTypeValue: value');
         }
       });
 
       test('InnerError variant', () {
-        expect(() => oops_enum(5), throwsA(isA<Error.InnerError>()));
+        expect(() => oopsEnum(5), throwsA(isA<Exception>()));
         try {
-          oops_enum(5);
+          oopsEnum(5);
         } catch (e) {
           expect(e.toString(),
               'uniffi.error_types.Exception\$InnerException: error=uniffi.error_types.Inner\$CaseA: v1=inner');
@@ -115,30 +114,30 @@ void main() {
 
     group('Tuple Error Tests', () {
       test('TupleError Oops variant', () {
-        expect(() => oops_tuple(0), throwsA(isA<TupleError>()));
+        expect(() => oopsTuple(0), throwsA(isA<TupleException>()));
         try {
-          oops_tuple(0);
+          oopsTuple(0);
         } catch (e) {
           expect(e.toString(), "'oops'");
-          expect(e.toString(), equals("TupleError.Oops('oops')"));
+          expect(e.toString(), equals("TupleException.Oops('oops')"));
         }
       });
 
       test('TupleError Value variant', () {
-        expect(() => oops_tuple(1), throwsA(isA<TupleError>()));
+        expect(() => oopsTuple(1), throwsA(isA<TupleException>()));
         try {
-          oops_tuple(1);
+          oopsTuple(1);
         } catch (e) {
           expect(e.toString(), '1');
-          expect(e.toString(), equals("TupleError.Value(1)"));
+          expect(e.toString(), equals("TupleException.Value(1)"));
         }
       });
 
       test('Get tuple with default', () {
         final tuple = getTuple(null);
-        expect(tuple.toString(), "TupleError.Oops('oops')");
+        expect(tuple.toString(), "TupleException.Oops('oops')");
         expect(getTuple(tuple), tuple);
-      }
+      });
     });
 
     test('Async throw error', () async {

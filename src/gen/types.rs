@@ -8,7 +8,7 @@ use uniffi_bindgen::{interface::Type, ComponentInterface};
 
 use super::render::{AsRenderable, Renderable, Renderer, TypeHelperRenderer};
 use super::{enums, functions, objects, oracle::AsCodeType, records};
-use crate::gen::DartCodeOracle;
+use crate::gen::oracle::DartCodeOracle;
 
 type FunctionDefinition = dart::Tokens;
 
@@ -91,7 +91,10 @@ impl Renderer<(FunctionDefinition, dart::Tokens)> for TypeHelpersRenderer<'_> {
         // let function_definitions = quote!($( for fun in self.ci.function_definitions() => $(functions::generate_function("this", fun, self))));
 
         let function_definitions = quote!(
-            $(for fun in self.ci.function_definitions() => $(functions::generate_function(fun, self)))
+            $(for fun in self.ci.function_definitions() => 
+                $(functions::generate_function(fun, self))
+                
+            )
         );
 
         let mut callback_code = quote!();
@@ -449,7 +452,7 @@ pub fn generate_type(ty: &Type) -> dart::Tokens {
         Type::Boolean => quote!(bool),
         Type::Optional { inner_type } => quote!($(generate_type(inner_type))?),
         Type::Sequence { inner_type } => quote!(List<$(generate_type(inner_type))>),
-        Type::Enum { name, .. } => quote!($name),
+        Type::Enum { name, .. } => quote!($(DartCodeOracle::class_name(name))),
         Type::Duration => quote!(Duration),
         Type::Record { name, .. } => quote!($name),
         Type::Custom { name, .. } => quote!($name),

@@ -43,13 +43,13 @@ macro_rules! impl_renderable_for_compound {
        paste! {
             impl Renderable for $T {
                 fn render_type_helper(&self, type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
-                    type_helper.include_once_check($canonical_name_pattern, &self.self_type);
+                    type_helper.include_once_check(&self.ffi_converter_name(), &self.self_type);
                     let inner_codetype = DartCodeOracle::find(self.inner());
                     let inner_type_label = inner_codetype.type_label();
 
                     type_helper.include_once_check(&inner_codetype.canonical_name(), &self.inner()); // Add the Inner FFI Converter
 
-                    let cl_name = &format!($canonical_name_pattern, inner_codetype.canonical_name());
+                    let cl_name = &format!($canonical_name_pattern, &inner_codetype.canonical_name());
                     let type_label = &format!($type_label_pattern, &inner_type_label);
 
                     let inner_cl_converter_name = &inner_codetype.ffi_converter_name();
@@ -120,13 +120,13 @@ macro_rules! impl_renderable_for_compound {
             impl Renderable for SequenceCodeType {
                 fn render_type_helper(&self, type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
 
-                    type_helper.include_once_check($canonical_name_pattern, &self.self_type);
+                    type_helper.include_once_check(&self.ffi_converter_name(), &self.self_type);
                     let inner_codetype = self.inner().as_codetype();
                     let inner_type_label = inner_codetype.type_label();
 
                     type_helper.include_once_check(&inner_codetype.canonical_name(), &self.inner()); // Add the Inner FFI Converter
 
-                    let cl_name = &format!($canonical_name_pattern, inner_codetype.canonical_name());
+                    let cl_name = &format!($canonical_name_pattern, &inner_codetype.canonical_name());
                     let type_label = &format!("List<{}>", &inner_type_label);
 
                     let inner_cl_converter_name = &inner_codetype.ffi_converter_name();

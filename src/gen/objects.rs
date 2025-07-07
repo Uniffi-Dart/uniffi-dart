@@ -1,4 +1,5 @@
 use genco::prelude::*;
+use heck::ToLowerCamelCase;
 use crate::gen::callback_interface::{generate_callback_functions, generate_callback_interface, generate_callback_interface_vtable_init_function, generate_callback_vtable_interface};
 use crate::gen::CodeType;
 use uniffi_bindgen::backend::Literal;
@@ -124,12 +125,52 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
         }
     });
 
+    // For interface objects that are used as error types, generate error handlers
+    let is_error_interface = type_helper.get_ci().is_name_used_as_error(obj.name());
+    
+    let error_handler_class = if is_error_interface {
+        // Generate error handlers for specific error interfaces
+        let error_handler_name = format!("{}ErrorHandler", cls_name);
+        let instance_name = cls_name.to_lower_camel_case();
+        quote! {
+            class $(&error_handler_name) extends UniffiRustCallStatusErrorHandler {
+                @override
+                Exception lift(RustBuffer errorBuf) {
+                    return $(cls_name).read(errorBuf.asUint8List()).value;
+                }
+            }
+
+            final $(&error_handler_name) $(instance_name)ErrorHandler = $(&error_handler_name)();
+        }
+    } else {
+        quote!()
+    };
+
+    let implements_exception = if is_error_interface {
+        quote!( implements Exception)
+    } else {
+        quote!()
+    };
+
+    // Generate simple toString() method for error interfaces
+    let toString_method: dart::Tokens = if is_error_interface {
+        let class_name_string = format!("\"{}\"", cls_name);
+        quote! {
+            @override
+            String toString() {
+                return $(&class_name_string);
+            }
+        }
+    } else {
+        quote!()
+    };
+
     quote! {
         final _$finalizer_cls_name = Finalizer<Pointer<Void>>((ptr) {
           rustCall((status) => $lib_instance.$ffi_object_free_name(ptr, status));
         });
 
-        class $cls_name {
+        class $cls_name $implements_exception {
             late final Pointer<Void> _ptr;
 
             // Private constructor for internal use / lift
@@ -175,8 +216,12 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
                 rustCall((status) => $lib_instance.$ffi_object_free_name(_ptr, status));
             }
 
+            $toString_method
+
             $(for mt in &obj.methods() => $(generate_method(mt, type_helper)))
         }
+
+        $error_handler_class
 
         $(stream_glue)
     }
