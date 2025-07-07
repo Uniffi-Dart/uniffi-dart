@@ -157,7 +157,7 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
 
     
     // Generate toString() method for error interfaces
-    let toString_method: dart::Tokens = if is_error_interface && !obj.is_trait_interface() {
+    let to_string_method: dart::Tokens = if is_error_interface && !obj.is_trait_interface() {
         // Only generate toString for regular error interfaces, skip trait interfaces for now
         let dart_class_name = format!("\"{}\"", cls_name);
         quote! {
@@ -221,7 +221,7 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
                 rustCall((status) => $lib_instance.$ffi_object_free_name(_ptr, status));
             }
 
-            $toString_method
+            $to_string_method
 
             $(for mt in &obj.methods() => $(generate_method(mt, type_helper)))
         }

@@ -176,7 +176,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             }).collect();
 
             // Generate simple toString() method for error enum variants
-            let toString_method: dart::Tokens = if type_helper.get_ci().is_name_used_as_error(obj.name()) {
+            let to_string_method: dart::Tokens = if type_helper.get_ci().is_name_used_as_error(obj.name()) {
                 let class_name_string = format!("\"{}\"", variant_dart_cls_name);
                 quote!(
                     @override
@@ -229,7 +229,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                         return new_offset;
                     }
 
-                    $toString_method
+                    $to_string_method
                 }
             });
         }
