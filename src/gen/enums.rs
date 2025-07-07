@@ -187,7 +187,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             } else {
                 quote!()
             };
-
+            
             variants.push(quote!{
                 class $variant_dart_cls_name extends $dart_cls_name {
                     $(for (i, field) in variant_obj.fields().iter().enumerate() => final $(field_type(field, type_helper)) $(field_name(field, i));  )
