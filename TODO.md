@@ -11,7 +11,7 @@ In this codebase, rendering Dart language bindings directly from Rust should inv
 - [x] Duration Type 
 - [x] Complex Types (Records/Structs, Enums, Objects)
 - [x] Function Generation and Calling
-- [x] Error Handling Infrastructure  
+- [x] Error Handling Infrastructure (basic toString() using class names, trait interfaces skipped)  
 - [x] FFI Infrastructure and Bindings
 - [x] Basic Memory Management (RustBuffer, etc.)
 - [x] Type Converters and Lifting/Lowering
@@ -28,6 +28,7 @@ In this codebase, rendering Dart language bindings directly from Rust should inv
 - [ ] **Collections Types** - Complete Maps and Sequences implementation
 - [ ] **Callbacks** - Re-enable and fix callback interface implementation
 - [ ] **Futures and Async Dart** - Complete async/await support
+- [ ] **Trait Interfaces** - Implement Display trait support for error objects with proper toString() methods using uniffi_trait_display FFI methods
 - [ ] **Other Types**: 
   - [ ] Bytes/Binary Data
   - [ ] Timestamp 
