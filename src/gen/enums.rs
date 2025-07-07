@@ -177,13 +177,27 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
 
             // Generate simple toString() method for error enum variants
             let to_string_method: dart::Tokens = if type_helper.get_ci().is_name_used_as_error(obj.name()) {
-                let class_name_string = format!("\"{}\"", variant_dart_cls_name);
-                quote!(
-                    @override
-                    String toString() {
-                        return $(&class_name_string);
-                    }
-                )
+                if variant_obj.has_fields() {
+                    let field_interpolations = variant_obj.fields().iter()
+                        .enumerate()
+                        .map(|(i, field)| format!("${}", field_name(field, i)))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let to_string_with_fields = format!("\"{}({})\"", variant_dart_cls_name, field_interpolations );
+                    quote!(
+                        @override
+                        String toString() {
+                            return $(&to_string_with_fields);
+                        }
+                    )
+                } else {
+                    quote!(
+                        @override
+                        String toString() {
+                            return $(format!("\"{}\"", variant_dart_cls_name));
+                        }
+                    )
+                }
             } else {
                 quote!()
             };
