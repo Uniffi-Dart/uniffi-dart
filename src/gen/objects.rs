@@ -1,4 +1,7 @@
 use genco::prelude::*;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::string::ToString;
 use heck::ToLowerCamelCase;
 use crate::gen::callback_interface::{generate_callback_functions, generate_callback_interface, generate_callback_interface_vtable_init_function, generate_callback_vtable_interface};
 use crate::gen::CodeType;
@@ -152,13 +155,48 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
         quote!()
     };
 
-    // Generate simple toString() method for error interfaces
+    
+    // Generate toString() method for error interfaces
     let toString_method: dart::Tokens = if is_error_interface {
-        let class_name_string = format!("\"{}\"", cls_name);
-        quote! {
-            @override
-            String toString() {
-                return $(&class_name_string);
+        // All error interface objects are assumed to have Display trait support
+        // Generate Display trait FFI method name dynamically
+        let namespace = type_helper.get_ci().namespace();
+        let object_name_lower = obj.name().to_lowercase();
+        let display_ffi_method = format!("uniffi_{}_fn_method_{}_uniffi_trait_display", namespace, object_name_lower);
+        
+        // Check if this object name ends with "Error" and class name ends with "Exception" (needs replacement)
+        let needs_class_name_replacement = obj.name().ends_with("Error") && cls_name.ends_with("Exception");
+        let dart_class_name = format!("\"{}\"", cls_name);
+        
+        if needs_class_name_replacement {
+            // For objects like RichError -> RichException, replace the class name in Display output
+            let rust_object_name = obj.name();
+            let rust_name_str = format!("\"{}\"", rust_object_name);
+            quote! {
+                @override
+                String toString() {
+                    try {
+                        final displayResult = rustCall((status) => $(lib_instance).$(&display_ffi_method)(uniffiClonePointer(), status));
+                        final rustMessage = FfiConverterString.lift(displayResult);
+                        // Replace Rust object name with Dart class name to match naming convention
+                        return rustMessage.replaceFirst($(&rust_name_str), $(&dart_class_name));
+                    } catch (e) {
+                        return $(&dart_class_name);
+                    }
+                }
+            }
+        } else {
+            // For other error interfaces, use Display trait directly
+            quote! {
+                @override
+                String toString() {
+                    try {
+                        final displayResult = rustCall((status) => $(lib_instance).$(&display_ffi_method)(uniffiClonePointer(), status));
+                        return FfiConverterString.lift(displayResult);
+                    } catch (e) {
+                        return $(&dart_class_name);
+                    }
+                }
             }
         }
     } else {
