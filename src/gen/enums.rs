@@ -94,10 +94,10 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             if field.name().is_empty() { format!("v{}", field_num) } else { DartCodeOracle::var_name(field.name()) }
         }
         fn field_type(field: &Field, type_helper: &dyn TypeHelperRenderer) -> String {
-            field.as_type().as_renderable().render_type(&field.as_type(), type_helper).to_string().expect("Could not stringify type")
+            field.as_type().as_renderable().render_type(&field.as_type(), type_helper).to_string().expect("Could not stringify type").replace("Error", "Exception")
         }
         fn field_ffi_converter_name(field: &Field) -> String {
-            field.as_type().as_codetype().ffi_converter_name()
+            field.as_type().as_codetype().ffi_converter_name().replace("Error", "Exception")
         }
         fn is_flat_enum(field: &Field, type_helper: &dyn TypeHelperRenderer) -> bool {
             if let Type::Enum { name, .. } = &field.as_type() {
