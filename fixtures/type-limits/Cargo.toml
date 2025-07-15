@@ -1,0 +1,23 @@
+[package]
+name = "type_limits"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "type_limits"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+uniffi = { workspace = true }
+
+[build-dependencies]
+uniffi-dart = { path = "../../", features = ["build"] }
+camino = "1"
+
+[dev-dependencies]
+uniffi-dart = { path = "../../", features = ["bindgen-tests"] }
+uniffi = { workspace = true, features = [
+  "bindgen-tests",
+] }
+anyhow = "1" 

@@ -1,0 +1,17 @@
+namespace simple_fns {
+  string get_string();
+  i32 get_int();
+  string string_identity(string s);
+  record<string, string> hash_map_identity(record<string, string> h);
+  u32 byte_to_u32(u8 byte);
+  MyHashSet new_set();
+  void add_to_set(MyHashSet set, string value);
+  boolean set_contains(MyHashSet set, string value);
+  void dummy(i8? arg);
+};
+
+interface MyHashSet {
+  constructor();
+  void add(string value);
+  boolean contains(string value);
+}; 
