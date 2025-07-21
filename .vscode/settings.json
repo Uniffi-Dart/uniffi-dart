@@ -6,5 +6,6 @@
         "implement",
         "Renderable",
         "uniffi"
-    ]
+    ],
+    "files.autoSave": "afterDelay"
 }

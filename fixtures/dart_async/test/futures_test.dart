@@ -118,4 +118,163 @@ void main() {
     });
     expect(time.inMilliseconds >= 400 && time.inMilliseconds <= 600, true);
   });
+
+  test('udl_async_function', () async {
+    final time = await measureTime(() async {
+      final result = await udlAlwaysReady();
+      expect(result, true);
+    });
+    expect(time.inMilliseconds < 100, true);
+  });
+
+  test('proc_macro_megaphone_async_constructor', () async {
+    final time = await measureTime(() async {
+      final megaphone = await Megaphone();
+      expect(megaphone, isNotNull);
+    });
+    expect(time.inMilliseconds < 100, true);
+  });
+
+  test('proc_macro_megaphone_secondary_constructor', () async {
+    final time = await measureTime(() async {
+      final megaphone = await Megaphone.secondary();
+      expect(megaphone, isNotNull);
+    });
+    expect(time.inMilliseconds < 100, true);
+  });
+
+  test('proc_macro_megaphone_async_methods', () async {
+    final megaphone = await Megaphone();
+
+    // Test async method with timing
+    final time = await measureTime(() async {
+      final result = await megaphone.sayAfter(100, 'Alice');
+      expect(result, 'HELLO, ALICE!');
+    });
+    expect(time.inMilliseconds >= 100 && time.inMilliseconds < 200, true);
+
+    // Test async silence method
+    final silenceTime = await measureTime(() async {
+      final result = await megaphone.silence();
+      expect(result, '');
+    });
+    expect(
+      silenceTime.inMilliseconds >= 100 && silenceTime.inMilliseconds < 200,
+      true,
+    );
+  });
+
+  test('proc_macro_megaphone_sync_method', () async {
+    final megaphone = await Megaphone();
+
+    // Test sync method (should be immediate)
+    final time = await measureTime(() async {
+      final result = megaphone.sayNow('Bob');
+      expect(result, 'HELLO, BOB!');
+    });
+    expect(time.inMilliseconds < 50, true);
+  });
+
+  test('proc_macro_megaphone_tokio_method', () async {
+    final megaphone = await Megaphone();
+
+    final time = await measureTime(() async {
+      final result = await megaphone.sayAfterWithTokio(100, 'Charlie');
+      expect(result, 'HELLO, CHARLIE (WITH TOKIO)!');
+    });
+    expect(time.inMilliseconds >= 100 && time.inMilliseconds < 200, true);
+  });
+
+  test('proc_macro_megaphone_fallible_method', () async {
+    final megaphone = await Megaphone();
+
+    // Test success case
+    final result = await megaphone.fallibleMe(false);
+    expect(result, 42);
+
+    // Test failure case
+    try {
+      await megaphone.fallibleMe(true);
+      expect(false, true); // Should never reach here
+    } catch (e) {
+      expect(true, true); // Expected to throw
+    }
+  });
+
+  test('udl_megaphone_async_constructors', () async {
+    // Test primary constructor
+    final time1 = await measureTime(() async {
+      final udlMegaphone = await UdlMegaphone();
+      expect(udlMegaphone, isNotNull);
+    });
+    expect(time1.inMilliseconds < 100, true);
+
+    // Test secondary constructor
+    final time2 = await measureTime(() async {
+      final udlMegaphone = await UdlMegaphone.secondary();
+      expect(udlMegaphone, isNotNull);
+    });
+    expect(time2.inMilliseconds < 100, true);
+  });
+
+  test('udl_megaphone_async_method', () async {
+    final udlMegaphone = await UdlMegaphone();
+
+    final time = await measureTime(() async {
+      final result = await udlMegaphone.sayAfter(100, 'Dave');
+      expect(result, 'HELLO, DAVE (FROM UDL MEGAPHONE)!');
+    });
+    expect(time.inMilliseconds >= 100 && time.inMilliseconds < 200, true);
+  });
+
+  test('async_object_creation_functions', () async {
+    // Test sync object creation
+    final syncMegaphone = newMegaphone();
+    expect(syncMegaphone, isNotNull);
+
+    // Test async object creation
+    final asyncMegaphone = await asyncNewMegaphone();
+    expect(asyncMegaphone, isNotNull);
+
+    // Test conditional async object creation
+    final maybeMegaphone1 = await asyncMaybeNewMegaphone(true);
+    expect(maybeMegaphone1, isNotNull);
+
+    final maybeMegaphone2 = await asyncMaybeNewMegaphone(false);
+    expect(maybeMegaphone2, isNull);
+  });
+
+  test('async_function_with_object_parameter', () async {
+    final megaphone = await Megaphone();
+
+    final time = await measureTime(() async {
+      final result = await sayAfterWithMegaphone(megaphone, 100, 'Eve');
+      expect(result, 'HELLO, EVE!');
+    });
+    expect(time.inMilliseconds >= 100 && time.inMilliseconds < 200, true);
+  });
+
+  test('fallible_struct_creation', () async {
+    // Test success case
+    final successResult = await fallibleStruct(false);
+    expect(successResult, isNotNull);
+
+    // Test failure case
+    try {
+      await fallibleStruct(true);
+      expect(false, true); // Should never reach here
+    } catch (e) {
+      expect(true, true); // Expected to throw
+    }
+  });
+
+  test('fallible_async_constructor', () async {
+    // This constructor always fails
+    try {
+      await FallibleMegaphone();
+      expect(false, true); // Should never reach here
+    } catch (e) {
+      expect(true, true); // Expected to throw
+    }
+  });
 }

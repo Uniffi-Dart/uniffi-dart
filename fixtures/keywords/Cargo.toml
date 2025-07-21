@@ -1,0 +1,14 @@
+[package]
+name = "keywords"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "keywords"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+uniffi = "0.29"
+
+[build-dependencies]
+uniffi-dart = { path = "../../" } 

@@ -87,7 +87,10 @@ void main() {
         try {
           oopsEnum(3);
         } catch (e) {
-          expect(e.toString(), 'FlatInnerExceptionErrorException');
+          expect(
+            e.toString(),
+            'FlatInnerExceptionErrorException(FlatInner.caseA)',
+          );
         }
       });
 
@@ -96,7 +99,10 @@ void main() {
         try {
           oopsEnum(4);
         } catch (e) {
-          expect(e.toString(), 'FlatInnerExceptionErrorException');
+          expect(
+            e.toString(),
+            'FlatInnerExceptionErrorException(FlatInner.caseB)',
+          );
         }
       });
 
@@ -105,7 +111,10 @@ void main() {
         try {
           oopsEnum(5);
         } catch (e) {
-          expect(e.toString(), 'InnerExceptionErrorException');
+          expect(
+            e.toString(),
+            'InnerExceptionErrorException(CaseAInner(inner))',
+          );
         }
       });
     });
@@ -137,7 +146,6 @@ void main() {
       });
     });
 
-    // TODO: Investigate why aoops() isn't throwing an exception
     // test('Async throw error', () async {
     //   try {
     //     await aoops();

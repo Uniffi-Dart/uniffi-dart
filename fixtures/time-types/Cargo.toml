@@ -1,0 +1,17 @@
+[package]
+name = "time-types"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "time_types"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+uniffi = "0.29"
+thiserror = "1.0"
+chrono = { version = "0.4", default-features = false, features = ["alloc", "std"] }
+
+[build-dependencies]
+uniffi-dart = { path = "../../" }
+camino = "1" 

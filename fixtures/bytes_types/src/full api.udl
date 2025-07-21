@@ -1,0 +1,101 @@
+namespace bytes_types {
+    // Basic bytes functions
+    sequence<u8> take_bytes(sequence<u8> v);
+    sequence<u8> take_bytes_with_validation(sequence<u8> v);
+    sequence<u8> take_empty_bytes();
+    sequence<u8> get_test_bytes();
+    sequence<u8> get_binary_bytes();
+    
+    // Record functions
+    RecordWithBytes make_record_with_bytes();
+    sequence<u8> take_record_with_bytes(RecordWithBytes rwb);
+    ComplexBytesRecord create_complex_bytes_record();
+    ComplexBytesRecord create_empty_bytes_record();
+    
+    // Enum functions
+    sequence<BytesEnum> create_bytes_enum_variants();
+    sequence<u8> process_bytes_enum(BytesEnum variant);
+    
+    // Error handling functions
+    [Throws=BytesError]
+    sequence<u8> validate_bytes_length(sequence<u8> data, u32 min_length);
+    [Throws=BytesError]
+    sequence<u8> validate_bytes_content(sequence<u8> data);
+    [Throws=BytesError]
+    sequence<u8> fallible_bytes_processing(sequence<u8> data);
+    
+    // Utility functions
+    record<DOMString, sequence<u8>> test_bytes_encodings();
+    record<DOMString, sequence<u8>> test_bytes_sizes();
+    ComplexBytesRecord comprehensive_bytes_test();
+    
+    // Callback testing
+    void call_bytes_callback_interface(BytesCallbackInterface cb);
+};
+
+// Records
+dictionary RecordWithBytes {
+    sequence<u8> some_bytes;
+};
+
+dictionary ComplexBytesRecord {
+    string name;
+    sequence<u8> required_bytes;
+    sequence<u8>? optional_bytes;
+    sequence<sequence<u8>> bytes_list;
+    record<DOMString, sequence<u8>> bytes_map;
+    u32 id;
+};
+
+dictionary RecordWithBytesDefaults {
+    string name;
+    sequence<u8> data;
+    sequence<u8>? optional_data;
+};
+
+// Object interface
+interface BytesProcessor {
+    constructor(string name);
+    
+    string get_name();
+    sequence<u8> reverse(sequence<u8> value);
+    sequence<u8> concat(sequence<sequence<u8>> arrays);
+    sequence<sequence<u8>> split_bytes(sequence<u8> data, u8 delimiter);
+    void store_bytes(sequence<u8> data);
+    sequence<u8> retrieve_bytes();
+    RecordWithBytes process_to_record(sequence<u8> data);
+    sequence<u8> xor_bytes(sequence<u8> data, u8 key);
+    record<DOMString, u64> get_stats(sequence<u8> data);
+};
+
+// Error enum
+[Error]
+enum BytesError {
+    "InvalidLength",
+    "InvalidValue", 
+    "ProcessingFailed",
+};
+
+// Bytes enum
+[Enum]
+interface BytesEnum {
+    Empty();
+    Small(sequence<u8> data);
+    Large(sequence<u8> data, string metadata);
+    Multiple(sequence<sequence<u8>> arrays);
+};
+
+// Callback interfaces
+callback interface BytesCallbackInterface {
+    void do_nothing();
+    sequence<u8> process_bytes(sequence<u8> data);
+    sequence<u8> with_bytes_record(RecordWithBytes record);
+    sequence<u8> combine_bytes(sequence<u8> first, sequence<u8> second);
+    boolean validate_bytes(sequence<u8> data);
+    record<DOMString, sequence<u8>> get_bytes_info();
+};
+
+callback interface BytesAsyncCallbackInterface {
+    sequence<u8> process_bytes_async(sequence<u8> data);
+    sequence<sequence<u8>> batch_process(sequence<sequence<u8>> batches);
+};

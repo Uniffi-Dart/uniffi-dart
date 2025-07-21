@@ -2,6 +2,7 @@
 /uniffi-rs
 /Cargo.lock
 experiments/*
+og-fixtures/*
 .vscode/*
 .vscode/settings.json
 .aider*

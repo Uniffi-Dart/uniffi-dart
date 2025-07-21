@@ -1,0 +1,18 @@
+[package]
+name = "benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "benchmarks"
+crate-type = ["lib", "cdylib"]
+bench = false
+
+[dependencies]
+uniffi = "0.29"
+clap = { version = "4", features = ["cargo", "std", "derive"] }
+criterion = "0.5.1"
+
+[build-dependencies]
+uniffi-dart = { path = "../../" }
+camino = "1" 

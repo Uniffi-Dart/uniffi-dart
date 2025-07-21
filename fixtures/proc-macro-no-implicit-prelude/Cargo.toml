@@ -1,0 +1,20 @@
+[package]
+name = "proc-macro-no-implicit-prelude"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "proc_macro_no_implicit_prelude"
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = ["myfeature"]
+myfeature = []
+
+[dependencies]
+thiserror = "1.0"
+uniffi = "0.29"
+
+[build-dependencies]
+uniffi-dart = { path = "../../" }
+camino = "1" 

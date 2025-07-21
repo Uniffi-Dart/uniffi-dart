@@ -1,0 +1,23 @@
+namespace metadata {
+    void test_metadata();
+    MetadataStruct get_metadata_struct();
+};
+
+dictionary MetadataStruct {
+    string name;
+    u32 version;
+    sequence<string> features;
+};
+
+interface MetadataObject {
+    constructor(string name);
+    string get_name();
+    void set_version(u32 version);
+    u32 get_version();
+};
+
+enum MetadataType {
+    "Basic",
+    "Advanced",
+    "Experimental"
+}; 

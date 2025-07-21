@@ -1,0 +1,16 @@
+[package]
+name = "docstring-proc-macro"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "docstring_proc_macro"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+thiserror = "1.0"
+uniffi = "0.29"
+
+[build-dependencies]
+uniffi-dart = { path = "../../" }
+camino = "1" 

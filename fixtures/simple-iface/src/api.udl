@@ -1,0 +1,8 @@
+namespace simple_iface {
+  Object make_object(i32 inner);
+};
+
+interface Object {
+  i32 get_inner();
+  Object? some_method();
+}; 

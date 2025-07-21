@@ -12,25 +12,54 @@ Reference: [TODOs](./TODO.md)
 
 This project must always work on latest stable rust + version before. We are also testing it against 1.1.70.0 , which we consider the Minimum Support Rust Version (MSRV) at this point. Rust lower than that will probably not compile the project.
 
-## Integration Tests
+## Testing & Fixtures
 
-The original command is the following:
+uniffi-dart includes a **comprehensive test suite** with 30 fixtures covering all major UniFFI functionality:
 
-```
+### **Fixture Coverage**
+
+- **Core Types**: Primitives, collections, optionals, type limits
+- **Async Patterns**: Comprehensive async/Future support with object-oriented patterns  
+- **Error Handling**: Error types, large errors, exception scenarios
+- **Object-Oriented**: Interfaces, constructors, methods, traits
+- **Time Handling**: Timestamps, durations, ISO 8601 formatting
+- **Performance**: FFI call overhead benchmarking
+- **Documentation**: UDL and proc-macro documentation generation
+- **External Types**: Cross-crate type sharing and custom type wrapping
+
+See [`TODO.md`](./TODO.md) for detailed development priorities and blocking feature analysis.
+
+### **Running Tests**
+
+Run all fixture tests:
+
+```bash
 cargo nextest run --all --nocapture
 ```
 
-If you want to test only the specific module, please use the following command:
+Run specific fixture tests:
 
-```
-cargo nextest run -p hello_world --nocapture
+```bash
+cargo nextest run -p simple_fns --nocapture
+cargo nextest run -p dart_async --nocapture
+cargo nextest run -p time_types --nocapture
 ```
 
-`genco` is based on `proc_macro_span`, so if you want fully functional whitespace detection, you must build and run projects using `genco` with a nightly compiler until `proc-macro2` is stablized.
+For nightly compiler features (`genco` whitespace detection):
 
-```
+```bash
 cargo +nightly nextest run -p hello_world --nocapture
 ```
+
+### **Identified Blockers**
+
+Our comprehensive fixture suite has identified 5 critical blocking features:
+
+1. **HashMap/Map support** - Core collection type missing
+2. **Proc-macro support** - Modern UniFFI development pattern
+3. **Dictionary default values** - Named parameters with defaults  
+4. **Trait method support** - Advanced trait functionality
+5. **BigInt support** - Large integer boundary handling
 
 ## License & Credits
 

@@ -1,1 +1,24 @@
-namespace dart_async { };
+namespace dart_async { 
+    // UDL-defined async functions (testing UDL vs proc-macro async support)
+    [Async]
+    boolean udl_always_ready();
+};
+
+// UDL-defined async trait interface
+[Trait]
+interface SayAfterUdlTrait {
+    [Async]
+    string say_after(u16 ms, string who);
+};
+
+// UDL-defined async object interface  
+interface UdlMegaphone {
+    [Async]
+    constructor();
+
+    [Async, Name="secondary"]
+    constructor();
+
+    [Async]
+    string say_after(u16 ms, string who);
+};
