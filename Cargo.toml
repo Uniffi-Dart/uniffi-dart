@@ -36,6 +36,7 @@ uniffi = { workspace = true, features = ["build", "tokio"] }
 uniffi_dart_macro = { path = "./uniffi_dart_macro" }
 uniffi_bindgen = { workspace = true }
 camino = "1"
+cargo_metadata = "0.18"
 serde = "1"
 toml = "0.9"
 genco = "0.17.5"
