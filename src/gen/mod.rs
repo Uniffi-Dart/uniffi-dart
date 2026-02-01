@@ -376,7 +376,9 @@ impl BindgenCrateConfigSupplier for ConfigFileSupplier {
 
     fn get_toml_path(&self, crate_name: &str) -> Option<Utf8PathBuf> {
         // This implementation matches uniffi_bindgen's CrateConfigSupplier::get_toml_path
-        self.crate_paths.get(crate_name).map(|p| p.join("uniffi.toml"))
+        self.crate_paths
+            .get(crate_name)
+            .map(|p| p.join("uniffi.toml"))
     }
 }
 
