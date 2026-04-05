@@ -26,6 +26,10 @@ impl CodeType for CustomCodeType {
     fn type_label(&self) -> String {
         DartCodeOracle::class_name(&self.name)
     }
+    
+    fn add_additional_type_helpers(&self, type_helper: &dyn TypeHelperRenderer) {
+        type_helper.include_once_check(&self.builtin.as_codetype().canonical_name(), &self.builtin);
+    }
 }
 
 impl AsType for CustomCodeType {

@@ -33,6 +33,10 @@ macro_rules! impl_code_type_for_compound {
                 fn canonical_name(&self) -> String {
                     format!($canonical_name_pattern, DartCodeOracle::find(self.inner()).canonical_name())
                 }
+
+                fn add_additional_type_helpers(&self, type_helper: &dyn TypeHelperRenderer) {
+                    type_helper.include_once_check(&self.inner().as_codetype().canonical_name(), self.inner());
+                }
             }
         }
     }

@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use uniffi_bindgen::pipeline::general::nodes::Literal;
 
+use crate::gen::render::TypeHelperRenderer;
+
 /// A trait tor the implementation.
 pub trait CodeType: Debug {
     /// The language specific label used to reference this type. This will be used in
@@ -48,4 +50,6 @@ pub trait CodeType: Debug {
     fn read(&self) -> String {
         format!("{}.read", self.ffi_converter_name())
     }
+
+    fn add_additional_type_helpers(&self, helper: &dyn TypeHelperRenderer) {}
 }
