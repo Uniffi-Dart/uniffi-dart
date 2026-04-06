@@ -325,6 +325,10 @@ impl DartCodeOracle {
                     let type_name = &DartCodeOracle::class_name(name);
                     quote!($type_name)
                 }
+                Type::CallbackInterface { name, .. } => {
+                    let type_name = &DartCodeOracle::class_name(name);
+                    quote!($type_name)
+                }
                 _ => quote!(dynamic),
             }
         } else {

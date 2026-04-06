@@ -35,6 +35,7 @@ impl<'a> TypeHelpersRenderer<'a> {
 impl TypeHelperRenderer for TypeHelpersRenderer<'_> {
     // Checks if the type imports for each type have already been added
     fn include_once_check(&self, name: &str, ty: &Type) -> bool {
+        ty.as_codetype().add_additional_type_helpers(self);
         let mut map = self.include_once_names.borrow_mut();
         let found = map.insert(name.to_string(), ty.clone()).is_some();
         drop(map);
