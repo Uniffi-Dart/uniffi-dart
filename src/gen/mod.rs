@@ -17,6 +17,7 @@ use uniffi_bindgen::Component;
 use self::render::Renderer;
 use self::types::TypeHelpersRenderer;
 use crate::gen::oracle::DartCodeOracle;
+use uniffi_bindgen::interface::AsType;
 use uniffi_bindgen::{BindingGenerator, ComponentInterface};
 
 mod callback_interface;
@@ -35,6 +36,10 @@ mod types;
 
 pub use code_type::CodeType;
 
+fn default_web_unsupported_policy() -> String {
+    "warn".to_string()
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Config {
     package_name: Option<String>,
@@ -42,6 +47,13 @@ pub struct Config {
     #[serde(default)]
     external_packages: HashMap<String, String>,
     asset_id: Option<String>,
+    #[serde(default)]
+    generate_web: bool,
+    wasm_module_name: Option<String>,
+    #[serde(default)]
+    wasm_crate_features: Vec<String>,
+    #[serde(default = "default_web_unsupported_policy")]
+    web_unsupported_policy: String,
 }
 
 impl From<&ComponentInterface> for Config {
@@ -51,6 +63,10 @@ impl From<&ComponentInterface> for Config {
             cdylib_name: Some(ci.namespace().to_owned()),
             external_packages: HashMap::new(),
             asset_id: None,
+            generate_web: false,
+            wasm_module_name: None,
+            wasm_crate_features: Vec::new(),
+            web_unsupported_policy: default_web_unsupported_policy(),
         }
     }
 }
@@ -82,6 +98,24 @@ impl Config {
             format!("uniffi:{}", self.cdylib_name())
         }
     }
+
+    pub fn generate_web(&self) -> bool {
+        self.generate_web
+    }
+
+    pub fn wasm_module_name(&self) -> String {
+        self.wasm_module_name
+            .clone()
+            .unwrap_or_else(|| format!("__uniffi_{}", self.package_name()))
+    }
+
+    pub fn web_unsupported_policy(&self) -> &str {
+        &self.web_unsupported_policy
+    }
+
+    pub fn wasm_crate_features(&self) -> &[String] {
+        &self.wasm_crate_features
+    }
 }
 
 pub struct DartWrapper<'a> {
@@ -92,7 +126,7 @@ pub struct DartWrapper<'a> {
 
 impl<'a> DartWrapper<'a> {
     pub fn new(ci: &'a ComponentInterface, config: &'a Config) -> Self {
-        let type_renderer = TypeHelpersRenderer::new(ci);
+        let type_renderer = TypeHelpersRenderer::with_import_prefix(ci, "../".to_string());
         DartWrapper {
             ci,
             config,
@@ -100,7 +134,23 @@ impl<'a> DartWrapper<'a> {
         }
     }
 
-    fn generate(&self) -> dart::Tokens {
+    fn generate_entry_point(&self) -> dart::Tokens {
+        let ns = self.ci.namespace();
+        quote! {
+            export $(quoted(format!("src/{ns}_stub.dart")))
+              if (dart.library.ffi) $(quoted(format!("src/{ns}_native.dart")))
+              if (dart.library.js_interop) $(quoted(format!("src/{ns}_web.dart")));
+        }
+    }
+
+    fn generate_web_placeholder(&self) -> dart::Tokens {
+        let ns = self.ci.namespace();
+        quote! {
+            export $(quoted(format!("{ns}_stub.dart")));
+        }
+    }
+
+    fn generate_native(&self) -> dart::Tokens {
         let package_name = &self.config.package_name();
 
         let (type_helper_code, functions_definitions) = &self.type_renderer.render();
@@ -221,9 +271,397 @@ impl<'a> DartWrapper<'a> {
             }
         }
     }
+
+    fn generate_stub(&self) -> dart::Tokens {
+        let ns = self.ci.namespace();
+        let import_prefix = "../";
+
+        let modules_to_import = self
+            .ci
+            .iter_external_types()
+            .map(|ty| {
+                self.ci
+                    .namespace_for_type(ty)
+                    .expect("external type should have module_path")
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+
+        let stub_imports = quote! {
+            import "dart:async";
+            import "dart:typed_data";
+            $( for imp in &modules_to_import {
+                $(format!("import \"{}{}.dart\"", import_prefix, imp));
+            })
+        };
+
+        let record_stubs = self.generate_stub_records();
+        let enum_stubs = self.generate_stub_enums();
+        let object_stubs = self.generate_stub_objects();
+        let function_stubs = self.generate_stub_functions();
+        let callback_stubs = self.generate_stub_callback_interfaces();
+        let stream_stubs = self.generate_stub_streams();
+
+        quote! {
+            $stub_imports
+
+            $record_stubs
+
+            $enum_stubs
+
+            $callback_stubs
+
+            $object_stubs
+
+            $function_stubs
+
+            $stream_stubs
+
+            void ensureInitialized() {
+                throw UnsupportedError($(quoted(format!("{ns} is not supported on this platform"))));
+            }
+
+            @Deprecated("Use ensureInitialized instead")
+            void initialize() {
+                throw UnsupportedError($(quoted(format!("{ns} is not supported on this platform"))));
+            }
+        }
+    }
+
+    fn generate_stub_records(&self) -> dart::Tokens {
+        let mut tokens = quote!();
+        for rec in self.ci.record_definitions() {
+            let cls_name = DartCodeOracle::class_name(rec.name());
+            let fields: Vec<dart::Tokens> = rec
+                .fields()
+                .iter()
+                .map(|f| {
+                    let field_name = DartCodeOracle::var_name(f.name());
+                    let field_type = types::generate_type(&f.as_type());
+                    quote!(final $field_type $field_name;)
+                })
+                .collect();
+            let constructor_params: Vec<dart::Tokens> = rec
+                .fields()
+                .iter()
+                .map(|f| {
+                    let field_name = DartCodeOracle::var_name(f.name());
+                    quote!(required this.$field_name)
+                })
+                .collect();
+            let constructor = if rec.fields().is_empty() {
+                quote!($(&cls_name)();)
+            } else {
+                quote!($(&cls_name)({$(for p in constructor_params => $p, )});)
+            };
+            tokens.append(quote! {
+                class $(&cls_name) {
+                    $(for f in fields => $f)
+                    $constructor
+                }
+            });
+        }
+        tokens
+    }
+
+    fn generate_stub_enums(&self) -> dart::Tokens {
+        let mut tokens = quote!();
+        for enm in self.ci.enum_definitions() {
+            let cls_name = DartCodeOracle::class_name(enm.name());
+            let is_error = self.ci.is_name_used_as_error(enm.name());
+            let implements_exception = if is_error {
+                quote!( implements Exception)
+            } else {
+                quote!()
+            };
+
+            if enm.is_flat() {
+                tokens.append(quote! {
+                    enum $(&cls_name) $(&implements_exception) {
+                        $(for v in enm.variants() =>
+                            $(DartCodeOracle::enum_variant_name(v.name())),)
+                        ;
+                    }
+                });
+            } else {
+                tokens.append(quote! {
+                    abstract class $(&cls_name) $(&implements_exception) {}
+                });
+                for variant in enm.variants() {
+                    let variant_cls = format!(
+                        "{}{}",
+                        DartCodeOracle::class_name(variant.name()),
+                        &cls_name
+                    );
+                    let field_decls: Vec<dart::Tokens> = variant
+                        .fields()
+                        .iter()
+                        .enumerate()
+                        .map(|(i, f)| {
+                            let name = if f.name().is_empty() {
+                                format!("v{i}")
+                            } else {
+                                DartCodeOracle::var_name(f.name())
+                            };
+                            let ty = types::generate_type(&f.as_type());
+                            quote!(final $ty $name;)
+                        })
+                        .collect();
+                    let ctor_params: Vec<dart::Tokens> = variant
+                        .fields()
+                        .iter()
+                        .enumerate()
+                        .map(|(i, f)| {
+                            let name = if f.name().is_empty() {
+                                format!("v{i}")
+                            } else {
+                                DartCodeOracle::var_name(f.name())
+                            };
+                            if variant.fields().len() > 1 {
+                                quote!(required this.$name)
+                            } else {
+                                quote!(this.$name)
+                            }
+                        })
+                        .collect();
+                    let ctor_list = if variant.fields().len() > 1 {
+                        quote!({$(for p in ctor_params => $p, )})
+                    } else {
+                        quote!($(for p in ctor_params => $p, ))
+                    };
+                    let to_string_method: dart::Tokens = if is_error {
+                        quote! {
+                            @override
+                            String toString() { return $(quoted(&variant_cls)); }
+                        }
+                    } else {
+                        quote!()
+                    };
+                    tokens.append(quote! {
+                        class $(&variant_cls) extends $(&cls_name) {
+                            $(for f in &field_decls => $f)
+                            $(&variant_cls)($ctor_list);
+                            $to_string_method
+                        }
+                    });
+                }
+            }
+        }
+        tokens
+    }
+
+    fn generate_stub_objects(&self) -> dart::Tokens {
+        let mut tokens = quote!();
+        for obj in self.ci.object_definitions() {
+            let cls_name = DartCodeOracle::class_name(obj.name());
+
+            if obj.has_callback_interface() {
+                let methods: Vec<dart::Tokens> = obj
+                    .methods()
+                    .iter()
+                    .map(|m| {
+                        let method_name = DartCodeOracle::fn_name(m.name());
+                        let ret = stub_return_type(m.return_type(), m.is_async());
+                        let params = stub_method_params(&m.arguments());
+                        quote!($ret $method_name($params);)
+                    })
+                    .collect();
+                tokens.append(quote! {
+                    abstract class $(&cls_name) {
+                        $(for m in methods => $m)
+                    }
+                });
+                continue;
+            }
+
+            if obj.is_trait_interface() {
+                let methods: Vec<dart::Tokens> = obj
+                    .methods()
+                    .iter()
+                    .map(|m| {
+                        let method_name = DartCodeOracle::fn_name(m.name());
+                        let ret = stub_return_type(m.return_type(), m.is_async());
+                        let params = stub_method_params(&m.arguments());
+                        quote!($ret $method_name($params);)
+                    })
+                    .collect();
+                tokens.append(quote! {
+                    abstract class $(&cls_name) {
+                        void dispose();
+                        $(for m in methods => $m)
+                    }
+                });
+                continue;
+            }
+
+            let interface_name = DartCodeOracle::object_interface_name(self.ci, obj);
+
+            let interface_method_sigs: Vec<dart::Tokens> = obj
+                .methods()
+                .iter()
+                .map(|m| {
+                    let method_name = DartCodeOracle::fn_name(m.name());
+                    let ret = stub_return_type(m.return_type(), m.is_async());
+                    let params = stub_method_params(&m.arguments());
+                    quote!($ret $method_name($params);)
+                })
+                .collect();
+
+            tokens.append(quote! {
+                abstract class $(&interface_name) {
+                    void dispose();
+                    $(for m in &interface_method_sigs => $m)
+                }
+            });
+
+            let unsupported = format!("{cls_name} is not supported on this platform");
+            let mut ctor_stubs = Vec::new();
+            for ctor in obj.constructors() {
+                let ctor_name = ctor.name();
+                let params = stub_method_params(&ctor.arguments());
+                if ctor.is_async() {
+                    if ctor_name == "new" {
+                        ctor_stubs.push(quote! {
+                            static Future<$(&cls_name)> new_($params) =>
+                                throw UnsupportedError($(quoted(&unsupported)));
+                        });
+                    } else {
+                        ctor_stubs.push(quote! {
+                            static Future<$(&cls_name)> $(DartCodeOracle::fn_name(ctor_name))($params) =>
+                                throw UnsupportedError($(quoted(&unsupported)));
+                        });
+                    }
+                } else if ctor_name == "new" {
+                    ctor_stubs.push(quote! {
+                        $(&cls_name)($params) { throw UnsupportedError($(quoted(&unsupported))); }
+                    });
+                } else {
+                    ctor_stubs.push(quote! {
+                        $(&cls_name).$(DartCodeOracle::fn_name(ctor_name))($params) { throw UnsupportedError($(quoted(&unsupported))); }
+                    });
+                }
+            }
+
+            let method_stubs: Vec<dart::Tokens> = obj
+                .methods()
+                .iter()
+                .map(|m| {
+                    let method_name = DartCodeOracle::fn_name(m.name());
+                    let ret = stub_return_type(m.return_type(), m.is_async());
+                    let params = stub_method_params(&m.arguments());
+                    quote!($ret $method_name($params) => throw UnsupportedError($(quoted(&unsupported)));)
+                })
+                .collect();
+
+            let is_error = self.ci.is_name_used_as_error(obj.name());
+            let error_impl = if is_error {
+                quote!( implements $(&interface_name), Exception)
+            } else {
+                quote!( implements $(&interface_name))
+            };
+
+            tokens.append(quote! {
+                class $(&cls_name) $error_impl {
+                    $(for c in ctor_stubs => $c)
+                    $(for m in method_stubs => $m)
+                    void dispose() => throw UnsupportedError($(quoted(&unsupported)));
+                }
+            });
+        }
+        tokens
+    }
+
+    fn generate_stub_functions(&self) -> dart::Tokens {
+        let mut tokens = quote!();
+        for func in self.ci.function_definitions() {
+            let fn_name = DartCodeOracle::fn_name(func.name());
+            let ret = stub_return_type(func.return_type(), func.is_async());
+            let params = stub_method_params(&func.arguments());
+            let msg = format!("{fn_name} is not supported on this platform");
+            tokens.append(quote! {
+                $ret $fn_name($params) => throw UnsupportedError($(quoted(msg)));
+            });
+        }
+        tokens
+    }
+
+    fn generate_stub_callback_interfaces(&self) -> dart::Tokens {
+        let mut tokens = quote!();
+        for cb in self.ci.callback_interface_definitions() {
+            let cls_name = DartCodeOracle::class_name(cb.name());
+            let methods: Vec<dart::Tokens> = cb
+                .methods()
+                .iter()
+                .map(|m| {
+                    let method_name = DartCodeOracle::fn_name(m.name());
+                    let ret = stub_return_type(m.return_type(), m.is_async());
+                    let params = stub_method_params(&m.arguments());
+                    quote!($ret $method_name($params);)
+                })
+                .collect();
+            tokens.append(quote! {
+                abstract class $(&cls_name) {
+                    $(for m in methods => $m)
+                }
+            });
+        }
+        tokens
+    }
+
+    fn generate_stub_streams(&self) -> dart::Tokens {
+        let mut tokens = quote!();
+        for obj in self.ci.object_definitions() {
+            if obj.name().contains("StreamExt") {
+                let fn_name = DartCodeOracle::fn_name(&obj.name().replace("StreamExt", ""));
+                let msg = format!("{fn_name} is not supported on this platform");
+                tokens.append(quote! {
+                    $fn_name() async* {
+                        throw UnsupportedError($(quoted(msg)));
+                    }
+                });
+            }
+        }
+        tokens
+    }
+}
+
+fn stub_return_type(
+    return_type: Option<&uniffi_bindgen::interface::Type>,
+    is_async: bool,
+) -> dart::Tokens {
+    let base = if let Some(ret) = return_type {
+        types::generate_type(ret)
+    } else {
+        quote!(void)
+    };
+    if is_async {
+        quote!(Future<$base>)
+    } else {
+        base
+    }
+}
+
+fn stub_method_params(args: &[&uniffi_bindgen::interface::Argument]) -> dart::Tokens {
+    if args.is_empty() {
+        return quote!();
+    }
+    quote!({$(for arg in args =>
+        required $(types::generate_type(&arg.as_type())) $(DartCodeOracle::var_name(arg.name())),
+    )})
 }
 
 pub struct DartBindingGenerator;
+
+fn write_dart_file(path: &Utf8Path, tokens: dart::Tokens, try_format_code: bool) -> Result<()> {
+    let file = std::fs::File::create(path)?;
+    let mut w = fmt::IoWriter::new(file);
+    let mut fmt_cfg = fmt::Config::from_lang::<Dart>();
+    if try_format_code {
+        fmt_cfg = fmt_cfg.with_indentation(fmt::Indentation::Space(2));
+    }
+    let dart_cfg = dart::Config::default();
+    tokens.format_file(&mut w.as_formatter(&fmt_cfg), &dart_cfg)?;
+    Ok(())
+}
 
 impl BindingGenerator for DartBindingGenerator {
     type Config = Config;
@@ -234,19 +672,32 @@ impl BindingGenerator for DartBindingGenerator {
         components: &[uniffi_bindgen::Component<Self::Config>],
     ) -> Result<()> {
         for Component { ci, config, .. } in components {
-            let filename = settings.out_dir.join(format!("{}.dart", ci.namespace()));
-            let tokens = DartWrapper::new(ci, config).generate();
-            let file = std::fs::File::create(filename)?;
+            let ns = ci.namespace();
+            let wrapper = DartWrapper::new(ci, config);
 
-            let mut w = fmt::IoWriter::new(file);
+            let src_dir = settings.out_dir.join("src");
+            std::fs::create_dir_all(&src_dir)?;
 
-            let mut fmt = fmt::Config::from_lang::<Dart>();
-            if settings.try_format_code {
-                fmt = fmt.with_indentation(fmt::Indentation::Space(2));
-            }
-            let config = dart::Config::default();
-
-            tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
+            write_dart_file(
+                &settings.out_dir.join(format!("{ns}.dart")),
+                wrapper.generate_entry_point(),
+                settings.try_format_code,
+            )?;
+            write_dart_file(
+                &src_dir.join(format!("{ns}_native.dart")),
+                wrapper.generate_native(),
+                settings.try_format_code,
+            )?;
+            write_dart_file(
+                &src_dir.join(format!("{ns}_stub.dart")),
+                wrapper.generate_stub(),
+                settings.try_format_code,
+            )?;
+            write_dart_file(
+                &src_dir.join(format!("{ns}_web.dart")),
+                wrapper.generate_web_placeholder(),
+                settings.try_format_code,
+            )?;
         }
 
         // Run full Dart formatter on the output directory as a best-effort step.
@@ -424,5 +875,45 @@ pub fn generate_dart_bindings(
             None,
             true,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use genco::fmt;
+
+    fn render_tokens(tokens: dart::Tokens) -> String {
+        let mut buf = Vec::new();
+        {
+            let mut w = fmt::IoWriter::new(&mut buf);
+            let fmt_cfg = fmt::Config::from_lang::<Dart>();
+            let dart_cfg = dart::Config::default();
+            tokens
+                .format_file(&mut w.as_formatter(&fmt_cfg), &dart_cfg)
+                .expect("failed to render tokens");
+        }
+        String::from_utf8(buf).expect("non-UTF8 output")
+    }
+
+    #[test]
+    fn entry_point_ffi_precedes_js_interop() {
+        let ci = ComponentInterface::new("test_ns");
+        let config = Config::from(&ci);
+        let wrapper = DartWrapper::new(&ci, &config);
+        let output = render_tokens(wrapper.generate_entry_point());
+
+        let ffi_pos = output
+            .find("dart.library.ffi")
+            .expect("ffi selector missing from entry point");
+        let js_pos = output
+            .find("dart.library.js_interop")
+            .expect("js_interop selector missing from entry point");
+
+        assert!(
+            ffi_pos < js_pos,
+            "ffi must appear before js_interop for native-wins precedence, \
+             but ffi at {ffi_pos}, js_interop at {js_pos}.\nGenerated:\n{output}"
+        );
     }
 }

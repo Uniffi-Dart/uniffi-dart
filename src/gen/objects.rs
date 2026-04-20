@@ -639,11 +639,14 @@ fn generate_object_interface(
 
     if method_tokens.is_empty() {
         quote! {
-            abstract class $(interface_name) {}
+            abstract class $(interface_name) {
+                void dispose();
+            }
         }
     } else {
         quote! {
             abstract class $(interface_name) {
+                void dispose();
                 $(for method in method_tokens => $method)
             }
         }

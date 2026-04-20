@@ -16,14 +16,16 @@ pub struct TypeHelpersRenderer<'a> {
     include_once_names: RefCell<HashMap<String, Type>>,
     // Tracks ad-hoc "include once" names that don't map to a concrete `Type`
     include_once_custom: RefCell<HashSet<String>>,
+    import_prefix: String,
 }
 
 impl<'a> TypeHelpersRenderer<'a> {
-    pub fn new(ci: &'a ComponentInterface) -> Self {
+    pub fn with_import_prefix(ci: &'a ComponentInterface, import_prefix: String) -> Self {
         Self {
             ci,
             include_once_names: RefCell::new(HashMap::new()),
             include_once_custom: RefCell::new(HashSet::new()),
+            import_prefix,
         }
     }
 
@@ -93,11 +95,11 @@ impl Renderer<(FunctionDefinition, dart::Tokens)> for TypeHelpersRenderer<'_> {
                     .expect("external type should have module_path")
             })
             .collect::<BTreeSet<_>>();
-        // The second import statement uses a library prefix, to distinguish conflicting identifiers e.g. RustBuffer vs. ext.RustBuffer
+        let import_prefix = &self.import_prefix;
         let imports: dart::Tokens = quote!(
             $( for imp in modules_to_import {
-                $(format!("import \"{}.dart\"", imp));
-                $(format!("import \"{}.dart\"", imp)) as $imp;
+                $(format!("import \"{}{}.dart\"", import_prefix, imp));
+                $(format!("import \"{}{}.dart\"", import_prefix, imp)) as $imp;
             })
         );
 
@@ -551,9 +553,10 @@ pub fn generate_type(ty: &Type) -> dart::Tokens {
             value_type,
         } => quote!(Map<$(generate_type(key_type)), $(generate_type(value_type))>),
         Type::Enum { name, .. } => quote!($(DartCodeOracle::class_name(name))),
+        Type::Timestamp => quote!(DateTime),
         Type::Duration => quote!(Duration),
         Type::Record { name, .. } => quote!($name),
         Type::Custom { name, .. } => quote!($name),
-        _ => todo!("Type::{:?}", ty),
+        Type::CallbackInterface { name, .. } => quote!($name),
     }
 }
