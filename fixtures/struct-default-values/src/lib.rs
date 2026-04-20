@@ -6,4 +6,11 @@ pub struct Bookmark {
     pub title: Option<String>,
 }
 
+pub struct Contact {
+    pub name: String,
+    pub email: Option<String>,
+    pub age: i32,
+    pub nickname: Option<String>,
+}
+
 uniffi::include_scaffolding!("api");

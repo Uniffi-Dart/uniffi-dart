@@ -63,6 +63,7 @@ members = [
     # Working fixtures - only include fixtures that actually work
     "fixtures/arithmetic",
     "fixtures/bytes_types",
+    "fixtures/callbacks",
     "fixtures/duration_type_test",
     "fixtures/type-limits",
     "fixtures/hello_world",

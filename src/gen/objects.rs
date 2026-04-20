@@ -7,7 +7,6 @@ use crate::gen::callback_interface::{
 };
 use crate::gen::CodeType;
 use heck::ToLowerCamelCase;
-use std::string::ToString;
 use uniffi_bindgen::interface::{AsType, Method, Object, ObjectImpl, UniffiTrait};
 use uniffi_bindgen::pipeline::general::nodes::Literal;
 
@@ -35,7 +34,7 @@ impl CodeType for ObjectCodeType {
     }
 
     fn canonical_name(&self) -> String {
-        self.id.to_string()
+        self.type_label()
     }
 
     fn literal(&self, _literal: &Literal) -> String {

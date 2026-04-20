@@ -7,4 +7,11 @@ dictionary Bookmark {
     i32? last_modified = null;
     string url;
     string? title = null;
-}; 
+};
+
+dictionary Contact {
+    string name;
+    string? email;
+    i32 age;
+    string? nickname;
+};

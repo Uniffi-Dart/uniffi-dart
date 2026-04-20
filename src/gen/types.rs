@@ -544,7 +544,7 @@ pub fn generate_type(ty: &Type) -> dart::Tokens {
         Type::Float32 | Type::Float64 => quote!(double),
         Type::String => quote!(String),
         Type::Bytes => quote!(Uint8List),
-        Type::Object { name, .. } => quote!($name),
+        Type::Object { name, .. } => quote!($(DartCodeOracle::class_name(name))),
         Type::Boolean => quote!(bool),
         Type::Optional { inner_type } => quote!($(generate_type(inner_type))?),
         Type::Sequence { inner_type } => quote!(List<$(generate_type(inner_type))>),

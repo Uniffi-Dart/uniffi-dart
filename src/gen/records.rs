@@ -78,6 +78,8 @@ pub fn generate_record(obj: &Record, type_helper: &dyn TypeHelperRenderer) -> da
                     // Fallback to required when a default is present but cannot be rendered safely.
                     quote!(required this.$name)
                 }
+            } else if matches!(field.as_type(), Type::Optional { .. }) {
+                quote!(this.$name)
             } else {
                 quote!(required this.$name)
             }

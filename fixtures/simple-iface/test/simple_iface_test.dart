@@ -18,5 +18,15 @@ void main() {
       final obj2 = makeObject(inner: -100);
       expect(obj2.getInner(), equals(-100));
     });
+
+    test('error-named objects compile and work', () {
+      final protocol = getProtocolError(message: 'nested payload');
+      final payload = protocol.payloadError();
+
+      expect(payload, isNotNull);
+      expect(payload!.message(), equals('nested payload'));
+      expect(payload, isA<PayloadException>());
+      expect(protocol, isA<ProtocolException>());
+    });
   });
 }

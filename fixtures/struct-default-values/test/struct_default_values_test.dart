@@ -47,4 +47,38 @@ void main() {
       expect(bookmark.title, equals("Full Bookmark"));
     });
   });
+
+  group('Contact (optional fields without defaults)', () {
+    test('only required fields', () {
+      final contact = Contact(name: "Alice", age: 30);
+
+      expect(contact.name, equals("Alice"));
+      expect(contact.age, equals(30));
+      expect(contact.email, isNull);
+      expect(contact.nickname, isNull);
+    });
+
+    test('one optional field set', () {
+      final contact = Contact(name: "Bob", age: 25, email: "bob@example.com");
+
+      expect(contact.name, equals("Bob"));
+      expect(contact.age, equals(25));
+      expect(contact.email, equals("bob@example.com"));
+      expect(contact.nickname, isNull);
+    });
+
+    test('all fields set', () {
+      final contact = Contact(
+        name: "Carol",
+        age: 40,
+        email: "carol@example.com",
+        nickname: "CC",
+      );
+
+      expect(contact.name, equals("Carol"));
+      expect(contact.age, equals(40));
+      expect(contact.email, equals("carol@example.com"));
+      expect(contact.nickname, equals("CC"));
+    });
+  });
 }

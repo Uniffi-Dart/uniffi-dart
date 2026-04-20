@@ -38,7 +38,7 @@ pub trait Renderable {
             Type::String => quote!(String),
             Type::Boolean => quote!(bool),
             Type::Bytes => quote!(Uint8List),
-            Type::Object { name, .. } => quote!($name),
+            Type::Object { name, .. } => quote!($(DartCodeOracle::class_name(name))),
             Type::Optional { inner_type } => quote!($(&self.render_type(inner_type, type_helper))?),
             Type::Sequence { inner_type } => {
                 quote!(List<$(&self.render_type(inner_type, type_helper))>)

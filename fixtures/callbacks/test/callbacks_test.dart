@@ -24,7 +24,7 @@ class DartGetters extends ForeignGetters {
       throw ReallyBadArgumentComplexException(20); // Example of a complex error
     }
     if (v == 'UnexpectedError') {
-      throw UnexpectedExceptionWithReasonComplexException("something failed");
+      throw UnexpectedErrorWithReasonComplexException("something failed");
     }
     return arg2 ? v?.toUpperCase() : v;
   }
@@ -65,13 +65,17 @@ void main() {
 
   final callback = DartGetters();
   final rustGetters = RustGetters();
-  final rustStringifier = RustStringifier(StoredDartStringifier());
+  final rustStringifier = RustStringifier(callback: StoredDartStringifier());
 
   test('roundtrip getBool through callback', () {
     final flag = true;
     for (final v in [true, false]) {
       final expected = callback.getBool(v, flag);
-      final observed = rustGetters.getBool(callback, v, flag);
+      final observed = rustGetters.getBool(
+        callback: callback,
+        v: v,
+        argumentTwo: flag,
+      );
       expect(observed, equals(expected));
     }
   });
@@ -84,7 +88,11 @@ void main() {
       [0, 1],
     ]) {
       final expected = callback.getList(v, flag);
-      final observed = rustGetters.getList(callback, v, flag);
+      final observed = rustGetters.getList(
+        callback: callback,
+        v: v,
+        arg2: flag,
+      );
       expect(observed, equals(expected));
     }
   });
@@ -93,7 +101,11 @@ void main() {
     final flag = true;
     for (final v in ["Hello", "world"]) {
       final expected = callback.getString(v, flag);
-      final observed = rustGetters.getString(callback, v, flag);
+      final observed = rustGetters.getString(
+        callback: callback,
+        v: v,
+        arg2: flag,
+      );
       expect(observed, equals(expected));
     }
   });
@@ -102,26 +114,38 @@ void main() {
     final flag = true;
     for (final v in ["Some"]) {
       final expected = callback.getOption(v, flag);
-      final observed = rustGetters.getOption(callback, v, flag);
+      final observed = rustGetters.getOption(
+        callback: callback,
+        v: v,
+        arg2: flag,
+      );
       expect(observed, equals(expected));
     }
   });
 
   test('getStringOptionalCallback works', () {
     expect(
-      rustGetters.getStringOptionalCallback(callback, "1234567890123", false),
+      rustGetters.getStringOptionalCallback(
+        callback: callback,
+        v: "1234567890123",
+        arg2: false,
+      ),
       equals("1234567890123"),
     );
     // Passing null as the callback
     expect(
-      rustGetters.getStringOptionalCallback(null, "1234567890123", false),
+      rustGetters.getStringOptionalCallback(
+        callback: null,
+        v: "1234567890123",
+        arg2: false,
+      ),
       isNull,
     );
   });
 
   test('getNothing should not throw with normal argument', () {
     // Should not throw
-    rustGetters.getNothing(callback, "1234567890123");
+    rustGetters.getNothing(callback: callback, v: "1234567890123");
   });
 
   test('roundtrip getItems (sequence<Record>) through callback', () {
@@ -129,7 +153,7 @@ void main() {
       Item(name: 'foo', value: 100),
       Item(name: 'bar', value: 200),
     ];
-    final result = rustGetters.getItems(callback, items);
+    final result = rustGetters.getItems(callback: callback, v: items);
     expect(result.length, equals(2));
     expect(result[0].name, equals('foo'));
     expect(result[0].value, equals(100));
@@ -139,13 +163,13 @@ void main() {
 
   test('roundtrip getTag (Optional<Record>) through callback', () {
     final tag = Tag(id: 42, label: 'test');
-    final result = rustGetters.getTag(callback, tag);
+    final result = rustGetters.getTag(callback: callback, v: tag);
     expect(result, isNotNull);
     expect(result!.id, equals(42));
     expect(result.label, equals('test'));
 
     // Also test with null
-    final nullResult = rustGetters.getTag(callback, null);
+    final nullResult = rustGetters.getTag(callback: callback, v: null);
     expect(nullResult, isNull);
   });
 

@@ -1,8 +1,17 @@
 namespace simple_iface {
   Object make_object(i32 inner);
+  ProtocolError get_protocol_error(string message);
 };
 
 interface Object {
   i32 get_inner();
   Object? some_method();
-}; 
+};
+
+interface PayloadError {
+  string message();
+};
+
+interface ProtocolError {
+  PayloadError? payload_error();
+};

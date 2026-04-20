@@ -466,33 +466,19 @@ impl DartCodeOracle {
                     outReturn.value = result;
                 )
             }
-            Type::Optional { inner_type } => {
-                // For optional return values
-                if let Type::String = **inner_type {
-                    quote!(
-                        final result = obj.$method_name($(for arg in &args => $arg,));
-                        if (result == null) {
-                            outReturn.ref = toRustBuffer(Uint8List.fromList([0]));
-                        } else {
-                            final lowered = FfiConverterOptionalString.lower(result);
-                            outReturn.ref = toRustBuffer(lowered.asUint8List());
-                        }
-                    )
-                } else {
-                    let lowered = ret_type.as_codetype().ffi_converter_name();
-                    quote!(
-                        final result = obj.$method_name($(for arg in &args => $arg,));
-                        if (result == null) {
-                            outReturn.ref = toRustBuffer(Uint8List.fromList([0]));
-                        } else {
-                            final lowered = $lowered.lower(result);
-                            final buffer = Uint8List(1 + lowered.len);
-                            buffer[0] = 1;
-                            buffer.setAll(1, lowered.asUint8List());
-                            outReturn.ref = toRustBuffer(buffer);
-                        }
-                    )
-                }
+            Type::Optional { .. } => {
+                // For optional return values, use the Optional FfiConverter which already
+                // handles the discriminant byte encoding correctly.
+                let ffi_converter = ret_type.as_codetype().ffi_converter_name();
+                quote!(
+                    final result = obj.$method_name($(for arg in &args => $arg,));
+                    if (result == null) {
+                        outReturn.ref = toRustBuffer(Uint8List.fromList([0]));
+                    } else {
+                        final lowered = $ffi_converter.lower(result);
+                        outReturn.ref = toRustBuffer(lowered.asUint8List());
+                    }
+                )
             }
             Type::String => {
                 // For string return values
