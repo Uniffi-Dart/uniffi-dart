@@ -2,6 +2,15 @@
 
 All notable changes to uniffi-dart will be documented in this file.
 
+## v0.1.1+v0.30.0
+
+### Fixes
+
+- Generate FfiConverter for Sequence/Optional of records in callback interfaces (#117)
+- Fix Dart error object renaming (#120)
+- Use Optional FfiConverter's `lower()` for inner types to avoid double-wrapping nullable records in callback return values (#121)
+- Make nullable record fields optional in Dart constructors (#122)
+
 ## v0.1.0+v0.30.0
 
 Initial release of uniffi-dart targeting uniffi-rs v0.30.0.
