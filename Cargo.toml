@@ -1,6 +1,6 @@
 [package]
 name = "uniffi-dart"
-version = "0.1.0+v0.30.0"
+version = "0.2.0+v0.31.1"
 edition = "2021"
 license = "Apache-2 or MIT"
 homepage = "https://github.com/acterglobal/uniffi-dart"
