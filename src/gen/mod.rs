@@ -33,6 +33,7 @@ mod records;
 mod render;
 pub mod stream;
 mod types;
+mod web;
 
 pub use code_type::CodeType;
 
@@ -103,10 +104,10 @@ impl Config {
         self.generate_web
     }
 
-    pub fn wasm_module_name(&self) -> String {
+    pub fn wasm_module_name(&self, namespace: &str) -> String {
         self.wasm_module_name
             .clone()
-            .unwrap_or_else(|| format!("__uniffi_{}", self.package_name()))
+            .unwrap_or_else(|| format!("__uniffi_{namespace}"))
     }
 
     pub fn web_unsupported_policy(&self) -> &str {
@@ -148,6 +149,10 @@ impl<'a> DartWrapper<'a> {
         quote! {
             export $(quoted(format!("{ns}_stub.dart")));
         }
+    }
+
+    fn generate_web(&self) -> Result<dart::Tokens> {
+        web::WebDartWrapper::new(self.ci, self.config).generate()
     }
 
     fn generate_native(&self) -> dart::Tokens {
@@ -671,9 +676,26 @@ impl BindingGenerator for DartBindingGenerator {
         settings: &uniffi_bindgen::GenerationSettings,
         components: &[uniffi_bindgen::Component<Self::Config>],
     ) -> Result<()> {
+        web::validate_unique_wasm_module_names(
+            components
+                .iter()
+                .filter(|component| component.config.generate_web())
+                .map(|component| {
+                    (
+                        component.ci.namespace().to_string(),
+                        component.config.wasm_module_name(component.ci.namespace()),
+                    )
+                }),
+        )?;
+
         for Component { ci, config, .. } in components {
             let ns = ci.namespace();
             let wrapper = DartWrapper::new(ci, config);
+            let web_tokens = if config.generate_web() {
+                wrapper.generate_web()?
+            } else {
+                wrapper.generate_web_placeholder()
+            };
 
             let src_dir = settings.out_dir.join("src");
             std::fs::create_dir_all(&src_dir)?;
@@ -695,7 +717,7 @@ impl BindingGenerator for DartBindingGenerator {
             )?;
             write_dart_file(
                 &src_dir.join(format!("{ns}_web.dart")),
-                wrapper.generate_web_placeholder(),
+                web_tokens,
                 settings.try_format_code,
             )?;
         }
@@ -896,6 +918,34 @@ mod tests {
         String::from_utf8(buf).expect("non-UTF8 output")
     }
 
+    fn normalize_whitespace(s: &str) -> String {
+        s.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    fn stub_export_statement(output: &str, stub_file: &str) -> String {
+        let export_start = output
+            .find(&format!("export \"{stub_file}\""))
+            .expect("stub export missing");
+        let export_end = output[export_start..]
+            .find(';')
+            .map(|offset| export_start + offset)
+            .expect("stub export terminator missing");
+
+        normalize_whitespace(&output[export_start..=export_end])
+    }
+
+    fn assert_stub_export_hides(output: &str, stub_file: &str, hidden_names: &[&str]) {
+        let statement = stub_export_statement(output, stub_file);
+        let hide_list = statement
+            .split(" hide ")
+            .nth(1)
+            .expect("stub export should contain a hide clause")
+            .trim_end_matches(';');
+        let actual: Vec<_> = hide_list.split(',').map(str::trim).collect();
+
+        assert_eq!(actual, hidden_names, "unexpected stub export hide list");
+    }
+
     #[test]
     fn entry_point_ffi_precedes_js_interop() {
         let ci = ComponentInterface::new("test_ns");
@@ -915,5 +965,175 @@ mod tests {
             "ffi must appear before js_interop for native-wins precedence, \
              but ffi at {ffi_pos}, js_interop at {js_pos}.\nGenerated:\n{output}"
         );
+    }
+
+    #[test]
+    fn web_output_includes_js_interop_runtime() {
+        let ci = ComponentInterface::from_webidl(
+            r#"
+            namespace test_ns {
+                string greet(string name);
+            };
+            "#,
+            "test_ns",
+        )
+        .expect("test UDL should parse");
+        let mut config = Config::from(&ci);
+        config.generate_web = true;
+        config.wasm_module_name = Some("__uniffi_test_ns".to_string());
+        let wrapper = DartWrapper::new(&ci, &config);
+        let output = render_tokens(wrapper.generate_web().expect("web generation"));
+
+        assert!(output.contains("import \"dart:js_interop\";"));
+        assert_stub_export_hides(
+            &output,
+            "test_ns_stub.dart",
+            &["ensureInitialized", "initialize", "greet"],
+        );
+        assert!(output.contains("__uniffi_test_ns.init"));
+        assert!(output.contains("__uniffi_test_ns.test_ns_greet"));
+        assert!(output.contains("Future<void> ensureInitialized({String? wasmPath})"));
+        assert!(output.contains("uniffi_error"));
+        assert!(output.contains("uniffi_internal"));
+        assert!(output.contains("uniffi_panic"));
+    }
+
+    #[test]
+    fn duplicate_wasm_module_names_are_rejected() {
+        let result = web::validate_unique_wasm_module_names([
+            ("first".to_string(), "__uniffi_shared".to_string()),
+            ("second".to_string(), "__uniffi_shared".to_string()),
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn default_wasm_module_name_uses_namespace_not_package_name() {
+        let ci = ComponentInterface::from_webidl(
+            r#"
+            namespace component_ns {
+                string greet();
+            };
+            "#,
+            "component_ns",
+        )
+        .expect("test UDL should parse");
+        let mut config = Config::from(&ci);
+        config.package_name = Some("shared_package".to_string());
+
+        assert_eq!(
+            config.wasm_module_name(ci.namespace()),
+            "__uniffi_component_ns"
+        );
+    }
+
+    #[test]
+    fn distinct_wasm_module_names_are_accepted() {
+        let result = web::validate_unique_wasm_module_names([
+            ("first".to_string(), "__uniffi_first".to_string()),
+            ("second".to_string(), "__uniffi_second".to_string()),
+        ]);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn web_unsupported_policy_error_fails_generation() {
+        let ci = ComponentInterface::from_webidl(
+            include_str!("../../fixtures/simple-fns/src/api.udl"),
+            "simple_fns",
+        )
+        .expect("simple-fns UDL should parse");
+        let mut config = Config::from(&ci);
+        config.generate_web = true;
+        config.web_unsupported_policy = "error".to_string();
+        let wrapper = DartWrapper::new(&ci, &config);
+
+        assert!(wrapper.generate_web().is_err());
+    }
+
+    #[test]
+    fn web_unsupported_policy_error_rejects_object_only_components() {
+        let ci = ComponentInterface::from_webidl(
+            r#"
+            namespace test_ns {
+            };
+
+            interface Thing {
+                constructor();
+                void touch();
+            };
+            "#,
+            "test_ns",
+        )
+        .expect("test UDL should parse");
+        let mut config = Config::from(&ci);
+        config.generate_web = true;
+        config.web_unsupported_policy = "error".to_string();
+        let wrapper = DartWrapper::new(&ci, &config);
+
+        assert!(wrapper.generate_web().is_err());
+    }
+
+    #[test]
+    fn web_output_excludes_64_bit_integer_functions_until_lossless() {
+        let ci = ComponentInterface::from_webidl(
+            r#"
+            namespace test_ns {
+                i64 signed_big(i64 value);
+                u64 unsigned_big(u64 value);
+            };
+            "#,
+            "test_ns",
+        )
+        .expect("test UDL should parse");
+        let mut config = Config::from(&ci);
+        config.generate_web = true;
+        let wrapper = DartWrapper::new(&ci, &config);
+        let output = render_tokens(wrapper.generate_web().expect("web generation"));
+
+        assert_stub_export_hides(
+            &output,
+            "test_ns_stub.dart",
+            &["ensureInitialized", "initialize"],
+        );
+        assert!(!output.contains("__uniffi_test_ns.test_ns_signed_big"));
+        assert!(!output.contains("__uniffi_test_ns.test_ns_unsigned_big"));
+        assert!(!output.contains("JSBigInt"));
+    }
+
+    #[test]
+    fn web_output_selectively_hides_supported_simple_fns() {
+        let ci = ComponentInterface::from_webidl(
+            include_str!("../../fixtures/simple-fns/src/api.udl"),
+            "simple_fns",
+        )
+        .expect("simple-fns UDL should parse");
+        let mut config = Config::from(&ci);
+        config.generate_web = true;
+        let wrapper = DartWrapper::new(&ci, &config);
+        let output = render_tokens(wrapper.generate_web().expect("web generation"));
+
+        assert_stub_export_hides(
+            &output,
+            "simple_fns_stub.dart",
+            &[
+                "ensureInitialized",
+                "initialize",
+                "byteToU32",
+                "getInt",
+                "getString",
+                "stringIdentity",
+            ],
+        );
+        assert!(output.contains("getString"));
+        assert!(output.contains("getInt"));
+        assert!(output.contains("stringIdentity"));
+        assert!(output.contains("byteToU32"));
+        assert!(output.contains("__uniffi_simple_fns.simple_fns_get_string"));
+        assert!(output.contains("__uniffi_simple_fns.simple_fns_byte_to_u32"));
+        assert!(!output.contains("__uniffi_simple_fns.simple_fns_dummy"));
+        assert!(!output.contains("__uniffi_simple_fns.simple_fns_new_set"));
     }
 }
