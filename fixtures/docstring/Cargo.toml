@@ -9,7 +9,7 @@ crate-type = ["lib", "cdylib"]
 
 [dependencies]
 thiserror = "1.0"
-uniffi = "0.30"
+uniffi = "0.31"
 uniffi-dart = { path = "../../", features = ["bindgen-tests"] }
 
 [build-dependencies]

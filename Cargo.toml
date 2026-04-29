@@ -79,8 +79,8 @@ members = [
 ]
 
 [workspace.dependencies]
-uniffi = { version = "0.30.0" }
-uniffi_bindgen = { version = "0.30.0" }
-uniffi_build = { version = "0.30.0" }
-uniffi_testing = { version = "0.30.0" }
+uniffi = { version = "0.31.1" }
+uniffi_bindgen = { version = "0.31.1" }
+uniffi_build = { version = "0.31.1" }
+uniffi_testing = { version = "0.31.1" }
 camino = { version = "1.1" }

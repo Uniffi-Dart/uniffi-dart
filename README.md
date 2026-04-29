@@ -10,7 +10,7 @@ Add uniffi-dart as a dependency in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-uniffi-dart = "0.1.0+v0.30.0"
+uniffi-dart = "0.2.0+v0.31.1"
 ```
 
 ## Testing & Fixtures
@@ -78,9 +78,10 @@ versions that target the same uniffi-rs version.
 Tags follow the format `vX.Y.Z+vA.B.C`, where `X.Y.Z` is the
 uniffi-dart version and `A.B.C` is the targeted uniffi-rs version.
 
-| uniffi-dart version | uniffi-rs version |
-|---------------------|-------------------|
-| v0.1.0              | v0.30.0           |
+| uniffi-rs target | Latest uniffi-dart release |
+|------------------|----------------------------|
+| v0.31.1          | v0.2.0+v0.31.1             |
+| v0.30.0          | v0.1.1+v0.30.0             |
 
 ## License & Credits
 

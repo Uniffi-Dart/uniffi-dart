@@ -9,7 +9,7 @@ crate-type = ["lib", "cdylib"]
 bench = false
 
 [dependencies]
-uniffi = "0.30"
+uniffi = "0.31"
 clap = { version = "4", features = ["cargo", "std", "derive"] }
 criterion = "0.5.1"
 
