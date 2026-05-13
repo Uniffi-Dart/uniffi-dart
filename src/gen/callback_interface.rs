@@ -51,6 +51,7 @@ impl Renderable for CallbackInterfaceCodeType {
             &callback.as_codetype().ffi_converter_name(),
             &callback.methods(),
             type_helper,
+            None,
         );
         let vtable_interface =
             generate_callback_vtable_interface(callback.name(), &callback.methods());
@@ -82,10 +83,30 @@ pub fn generate_callback_interface(
     ffi_converter_name: &str,
     methods: &[&Method],
     type_helper: &dyn TypeHelperRenderer,
+    rust_impl_name: Option<&str>,
 ) -> dart::Tokens {
     let cls_name = &DartCodeOracle::class_name(callback_name);
     let ffi_conv_name = &DartCodeOracle::class_name(ffi_converter_name);
     let init_fn_name = &format!("init{callback_name}VTable");
+    let lift_rust_impl = rust_impl_name
+        .map(|name| quote!(return $name._internal(handle);))
+        .unwrap_or_else(|| {
+            quote!(
+                throw UniffiInternalError(
+                    UniffiInternalError.unexpectedStaleHandle,
+                    "Rust-owned callback interface handle is not supported for $cls_name",
+                );
+            )
+        });
+    let lower_rust_impl = rust_impl_name
+        .map(|name| {
+            quote!(
+                if (value is $name) {
+                    return value.uniffiClonePointer();
+                }
+            )
+        })
+        .unwrap_or_else(|| quote!());
 
     // TODO: Use global deduplication to avoid generating duplicate async types
     // when multiple async callback interfaces are defined
@@ -137,10 +158,15 @@ pub fn generate_callback_interface(
             static bool _vtableInitialized = false;
 
             static $cls_name lift(Pointer<Void> handle) {
-                return _handleMap.get(handle.address);
+                final rawHandle = handle.address;
+                if ((rawHandle & 0x1) == 0) {
+                    $lift_rust_impl
+                }
+                return _handleMap.remove(rawHandle);
             }
 
             static Pointer<Void> lower($cls_name value) {
+                $lower_rust_impl
                 _ensureVTableInitialized();
                 final handle = _handleMap.insert(value);
                 return Pointer<Void>.fromAddress(handle);

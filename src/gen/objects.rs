@@ -70,6 +70,7 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
             &obj.as_codetype().ffi_converter_name(),
             &obj.methods(),
             type_helper,
+            Some(&format!("_{}Impl", DartCodeOracle::class_name(obj.name()))),
         );
         let vtable_interface = generate_callback_vtable_interface(obj.name(), &obj.methods());
         let functions = generate_callback_functions(obj.name(), &obj.methods(), type_helper);
@@ -87,8 +88,10 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
             &obj.methods(),
             &ffi_module,
         );
+        let rust_impl = generate_callback_trait_rust_impl(obj, type_helper);
         return quote!(
             $interface
+            $rust_impl
             $vtable_interface
             $functions
             $vtable_init
@@ -316,6 +319,138 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
         $error_handler_class
 
         $(stream_glue)
+    }
+}
+
+fn generate_callback_trait_rust_impl(
+    obj: &Object,
+    type_helper: &dyn TypeHelperRenderer,
+) -> dart::Tokens {
+    let cls_name = &DartCodeOracle::class_name(obj.name());
+    let impl_name = format!("_{cls_name}Impl");
+    let finalizer_field = format!("_{cls_name}ImplFinalizer");
+    let ffi_object_free_name = obj.ffi_object_free().name();
+    let ffi_object_clone_name = obj.ffi_object_clone().name();
+    let concrete_methods = obj
+        .methods()
+        .into_iter()
+        .map(|method| generate_callback_trait_rust_method(method, type_helper));
+
+    quote! {
+        final class $(&impl_name) implements $cls_name {
+            $(&impl_name)._internal(this._ptr) {
+                $(&finalizer_field).attach(this, _ptr, detach: this);
+            }
+
+            static final Finalizer<Pointer<Void>> $(&finalizer_field) =
+                Finalizer<Pointer<Void>>((ptr) {
+                    rustCall((status) => $ffi_object_free_name(ptr, status));
+                });
+
+            Pointer<Void> _ptr;
+
+            Pointer<Void> uniffiClonePointer() {
+                return rustCall((status) => $ffi_object_clone_name(_ptr, status));
+            }
+
+            void dispose() {
+                $(&finalizer_field).detach(this);
+                rustCall((status) => $ffi_object_free_name(_ptr, status));
+            }
+
+            $(for method in concrete_methods => $method)
+        }
+    }
+}
+
+fn generate_callback_trait_rust_method(
+    method: &Method,
+    type_helper: &dyn TypeHelperRenderer,
+) -> dart::Tokens {
+    let method_name = DartCodeOracle::fn_name(method.name());
+    let dart_args = method
+        .arguments()
+        .iter()
+        .map(|arg| {
+            let arg_type = arg.as_renderable().render_type(&arg.as_type(), type_helper);
+            let arg_name = DartCodeOracle::var_name(arg.name());
+            quote!($arg_type $arg_name)
+        })
+        .collect::<Vec<_>>();
+
+    let (ret, lifter) = if let Some(ret) = method.return_type() {
+        (
+            ret.as_renderable().render_type(ret, type_helper),
+            quote!($(ret.as_codetype().lift())),
+        )
+    } else {
+        (quote!(void), quote!((_) {}))
+    };
+
+    let error_handler = if let Some(error_type) = method.throws_type() {
+        let error_name = DartCodeOracle::class_name(error_type.name().unwrap_or("UnknownError"));
+        let handler_name = format!("{}ErrorHandler", error_name.to_lower_camel_case());
+        quote!($(handler_name))
+    } else {
+        quote!(null)
+    };
+
+    if method.is_async() {
+        let async_lifter = if let Some(ret_type) = method.return_type() {
+            match ret_type {
+                uniffi_bindgen::interface::Type::Object { .. } => {
+                    quote!((ptr) => $lifter(Pointer<Void>.fromAddress(ptr)))
+                }
+                _ => lifter.clone(),
+            }
+        } else {
+            lifter.clone()
+        };
+
+        quote! {
+            @override
+            Future<$ret> $method_name($(for a in &dart_args => $a,)) {
+                return uniffiRustCallAsync(
+                    () => $(method.ffi_func().name())(
+                        uniffiClonePointer(),
+                        $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
+                    ),
+                    $(DartCodeOracle::async_poll(method, type_helper.get_ci())),
+                    $(DartCodeOracle::async_complete(method, type_helper.get_ci())),
+                    $(DartCodeOracle::async_free(method, type_helper.get_ci())),
+                    $async_lifter,
+                    $error_handler,
+                );
+            }
+        }
+    } else if ret == quote!(void) {
+        quote! {
+            @override
+            $ret $method_name($(for a in &dart_args => $a,)) {
+                return rustCall((status) {
+                    $(method.ffi_func().name())(
+                        uniffiClonePointer(),
+                        $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
+                        status
+                    );
+                }, $error_handler);
+            }
+        }
+    } else {
+        quote! {
+            @override
+            $ret $method_name($(for a in &dart_args => $a,)) {
+                return rustCallWithLifter(
+                    (status) => $(method.ffi_func().name())(
+                        uniffiClonePointer(),
+                        $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
+                        status
+                    ),
+                    $lifter,
+                    $error_handler
+                );
+            }
+        }
     }
 }
 

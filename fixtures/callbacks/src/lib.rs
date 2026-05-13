@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use uniffi;
 
 pub struct Item {
@@ -10,7 +12,7 @@ pub struct Tag {
     pub label: String,
 }
 
-trait ForeignGetters {
+trait ForeignGetters: Send + Sync {
     fn get_bool(&self, v: bool, argument_two: bool) -> Result<bool, SimpleError>;
     fn get_string(&self, v: String, arg2: bool) -> Result<String, SimpleError>;
     fn get_option(&self, v: Option<String>, arg2: bool) -> Result<Option<String>, ComplexError>;
@@ -140,6 +142,57 @@ impl RustStringifier {
     fn from_simple_type(&self, value: i32) -> String {
         self.callback.from_simple_type(value)
     }
+}
+
+#[uniffi::export(with_foreign)]
+pub trait JsonEventPersister: Send + Sync {
+    fn save(&self, event: String);
+    fn load(&self) -> Vec<String>;
+    fn close(&self);
+}
+
+#[derive(Debug, Default, uniffi::Object)]
+pub struct InMemoryEventPersister {
+    events: Mutex<Vec<String>>,
+}
+
+#[uniffi::export]
+impl InMemoryEventPersister {
+    #[uniffi::constructor]
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self::default())
+    }
+
+    pub fn as_persister(self: Arc<Self>) -> Arc<dyn JsonEventPersister> {
+        self
+    }
+}
+
+impl JsonEventPersister for InMemoryEventPersister {
+    fn save(&self, event: String) {
+        self.events
+            .lock()
+            .expect("event persister lock poisoned")
+            .push(event);
+    }
+
+    fn load(&self) -> Vec<String> {
+        self.events
+            .lock()
+            .expect("event persister lock poisoned")
+            .clone()
+    }
+
+    fn close(&self) {}
+}
+
+#[uniffi::export]
+pub fn save_and_load_persister(
+    persister: Arc<dyn JsonEventPersister>,
+    event: String,
+) -> Vec<String> {
+    persister.save(event);
+    persister.load()
 }
 
 uniffi::include_scaffolding!("api");

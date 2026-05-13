@@ -12,5 +12,8 @@ thiserror = "1.0"
 uniffi = "0.31"
 
 [build-dependencies]
-uniffi-dart = { path = "../../" }
+uniffi-dart = { path = "../../", features = ["build"] }
 camino = "1"
+
+[dev-dependencies]
+uniffi-dart = { path = "../../", features = ["bindgen-tests"] }

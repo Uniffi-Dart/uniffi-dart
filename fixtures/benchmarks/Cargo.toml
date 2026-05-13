@@ -14,5 +14,8 @@ clap = { version = "4", features = ["cargo", "std", "derive"] }
 criterion = "0.5.1"
 
 [build-dependencies]
-uniffi-dart = { path = "../../" }
+uniffi-dart = { path = "../../", features = ["build"] }
 camino = "1"
+
+[dev-dependencies]
+uniffi-dart = { path = "../../", features = ["bindgen-tests"] }

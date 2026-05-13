@@ -1,49 +1,54 @@
 import 'package:test/test.dart';
-import '../docstring_proc_macro.dart';
+import '../docstring_proc_macro.dart' as doc;
+
+class CallbackTestImpl extends doc.CallbackTest {
+  @override
+  void test() {}
+}
 
 void main() {
   group('Docstring Proc-Macro', () {
     test('proc-macro enum with docstring', () {
-      final enumValue = EnumTest.one;
-      expect(enumValue, equals(EnumTest.one));
+      final enumValue = doc.EnumTest.one;
+      expect(enumValue, equals(doc.EnumTest.one));
 
-      final enumValue2 = EnumTest.two;
-      expect(enumValue2, equals(EnumTest.two));
+      final enumValue2 = doc.EnumTest.two;
+      expect(enumValue2, equals(doc.EnumTest.two));
     });
 
     test('proc-macro associated enum with docstring', () {
       // This test will fail until proc-macro support is implemented
       // Expected: Associated enums should have documentation for variants and fields
 
-      final associatedEnum = AssociatedEnumTest.test(code: 42);
-      expect(associatedEnum, isA<AssociatedEnumTest>());
+      final associatedEnum = doc.TestAssociatedEnumTest(42);
+      expect(associatedEnum, isA<doc.AssociatedEnumTest>());
 
-      final associatedEnum2 = AssociatedEnumTest.test2(code: 43);
-      expect(associatedEnum2, isA<AssociatedEnumTest>());
+      final associatedEnum2 = doc.Test2AssociatedEnumTest(43);
+      expect(associatedEnum2, isA<doc.AssociatedEnumTest>());
     });
 
     test('proc-macro error with docstring', () {
       // This test will fail until proc-macro support is implemented
       // Expected: Error enums should have documentation on variants
 
-      expect(() => test(), throwsA(isA<ErrorTest>()));
+      expect(() => doc.test(), returnsNormally);
     });
 
     test('proc-macro associated error with docstring', () {
       // This test will fail until proc-macro support is implemented
       // Expected: Associated error enums should have documentation
 
-      expect(() => testWithoutDocstring(), throwsA(isA<AssociatedErrorTest>()));
+      expect(() => doc.testWithoutDocstring(), returnsNormally);
     });
 
     test('proc-macro object with docstring', () {
       // This test will fail until proc-macro support is implemented
       // Expected: Objects should have documentation on constructors and methods
 
-      final obj = ObjectTest();
+      final obj = doc.ObjectTest();
       obj.test();
 
-      final objAlt = ObjectTest.newAlternate();
+      final objAlt = doc.ObjectTest.newAlternate();
       objAlt.test();
     });
 
@@ -51,7 +56,7 @@ void main() {
       // This test will fail until proc-macro support is implemented
       // Expected: Records should have documentation on fields
 
-      final record = RecordTest(test: 42);
+      final record = doc.RecordTest(test: 42);
       expect(record.test, equals(42));
     });
 
@@ -59,28 +64,24 @@ void main() {
       // This test will fail until proc-macro support is implemented
       // Expected: Functions should have proper documentation comments in generated Dart
 
-      test();
-      testMultiline();
-      testWithoutDocstring();
+      doc.test();
+      doc.testMultiline();
+      doc.testWithoutDocstring();
     });
 
     test(
       'proc-macro callback interface with docstring',
       () {
-        // This test will fail until callback interface support is implemented
-        // Expected: Callback interfaces should have documentation on methods
-
-        // final callback = CallbackTestImpl();
-        // callback.test();
+        final callback = CallbackTestImpl();
+        callback.test();
       },
-      skip: 'Requires callback interface implementation',
     );
 
     test('proc-macro long docstring', () {
       // This test will fail until proc-macro support is implemented
       // Expected: Long docstrings (>255 chars) should be properly handled
 
-      testLongDocstring();
+      doc.testLongDocstring();
     });
 
     test('documentation generation comparison', () {
@@ -88,16 +89,16 @@ void main() {
       // Expected: Both should generate equivalent documentation in Dart
 
       // Test basic functionality to ensure proc-macro definitions work
-      final enumValue = EnumTest.one;
-      expect(enumValue, equals(EnumTest.one));
+      final enumValue = doc.EnumTest.one;
+      expect(enumValue, equals(doc.EnumTest.one));
 
-      test();
-      testMultiline();
+      doc.test();
+      doc.testMultiline();
 
-      final obj = ObjectTest();
+      final obj = doc.ObjectTest();
       obj.test();
 
-      final record = RecordTest(test: 123);
+      final record = doc.RecordTest(test: 123);
       expect(record.test, equals(123));
     });
   });

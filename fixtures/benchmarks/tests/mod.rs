@@ -2,6 +2,6 @@
 mod tests {
     #[test]
     fn test_benchmarks() {
-        uniffi_dart::testing::run_test("benchmarks", None).unwrap();
+        uniffi_dart::testing::run_test("benchmarks", "src/api.udl", None).unwrap();
     }
 }

@@ -173,6 +173,25 @@ void main() {
     expect(nullResult, isNull);
   });
 
+  test('Rust-owned with_foreign callback can be lifted and called from Dart', () {
+    final persister = InMemoryEventPersister().asPersister();
+
+    persister.save('receiver-created');
+    persister.save('receiver-saved');
+
+    expect(persister.load(), equals(['receiver-created', 'receiver-saved']));
+    persister.close();
+  });
+
+  test('Rust-owned with_foreign callback can be passed back into Rust', () {
+    final persister = InMemoryEventPersister().asPersister();
+
+    expect(
+      saveAndLoadPersister(persister: persister, event: 'payjoin-session'),
+      equals(['payjoin-session']),
+    );
+  });
+
   // test('getString throws SimpleException.BadArgument', () {
   //   final v = rustGetters.getString(callback, "BadArgument", true);
   //   expect(v, throwsA(isA<Exception>()));

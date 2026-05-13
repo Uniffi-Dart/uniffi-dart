@@ -26,18 +26,18 @@ class DartTestCallbackInterface implements TestCallbackInterface {
       case TestCase.function:
         for (int i = 0; i < count; i++) {
           testFunction(
-            10,
-            100,
-            TestData(foo: 'SomeStringData', bar: 'SomeMoreStringData'),
+            a: 10,
+            b: 100,
+            data: TestData(foo: 'SomeStringData', bar: 'SomeMoreStringData'),
           );
         }
         break;
       case TestCase.voidReturn:
         for (int i = 0; i < count; i++) {
           testVoidReturn(
-            10,
-            100,
-            TestData(foo: 'SomeStringData', bar: 'SomeMoreStringData'),
+            a: 10,
+            b: 100,
+            data: TestData(foo: 'SomeStringData', bar: 'SomeMoreStringData'),
           );
         }
         break;
@@ -57,14 +57,18 @@ void main() {
   group('Benchmarks', () {
     test('basic function benchmarking', () {
       final result = testFunction(
-        10,
-        100,
-        TestData(foo: 'TestFoo', bar: 'TestBar'),
+        a: 10,
+        b: 100,
+        data: TestData(foo: 'TestFoo', bar: 'TestBar'),
       );
       expect(result, equals('TestBar'));
 
       // Test void return
-      testVoidReturn(10, 100, TestData(foo: 'TestFoo', bar: 'TestBar'));
+      testVoidReturn(
+        a: 10,
+        b: 100,
+        data: TestData(foo: 'TestFoo', bar: 'TestBar'),
+      );
 
       // Test no args void return
       testNoArgsVoidReturn();
@@ -115,11 +119,7 @@ void main() {
 
       final callback = DartTestCallbackInterface();
 
-      // This would run the full benchmark suite
-      // runBenchmarks('Dart', callback);
-
-      // For now, just test that the function exists
-      // expect(() => runBenchmarks('Dart', callback), returnsNormally);
-    }, skip: 'Requires callback interface implementation');
+      expect(() => runBenchmarks(languageName: 'Dart', cb: callback), returnsNormally);
+    });
   });
 }
