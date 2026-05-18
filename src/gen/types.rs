@@ -13,6 +13,7 @@ type FunctionDefinition = dart::Tokens;
 
 pub struct TypeHelpersRenderer<'a> {
     ci: &'a ComponentInterface,
+    import_prefix: String,
     include_once_names: RefCell<BTreeMap<String, Type>>,
     // Tracks ad-hoc "include once" names that don't map to a concrete `Type`
     include_once_custom: RefCell<BTreeSet<String>>,
@@ -22,6 +23,7 @@ impl<'a> TypeHelpersRenderer<'a> {
     pub fn with_import_prefix(ci: &'a ComponentInterface, import_prefix: String) -> Self {
         Self {
             ci,
+            import_prefix,
             include_once_names: RefCell::new(BTreeMap::new()),
             include_once_custom: RefCell::new(BTreeSet::new()),
         }
@@ -538,7 +540,7 @@ mod tests {
     #[test]
     fn include_names_iterate_in_name_order() {
         let ci = ComponentInterface::new("determinism");
-        let renderer = TypeHelpersRenderer::new(&ci);
+        let renderer = TypeHelpersRenderer::with_import_prefix(&ci, String::new());
 
         renderer.include_once_check("z", &Type::String);
         renderer.include_once_check("a", &Type::UInt8);

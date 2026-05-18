@@ -30,7 +30,7 @@ impl<'a> WebDartWrapper<'a> {
 
         emit_unsupported_diagnostics(self.ci, self.config)?;
 
-        let mut hidden_names = vec!["ensureInitialized".to_string(), "initialize".to_string()];
+        let mut hidden_names = vec!["ensureInitialized".to_string()];
         hidden_names.extend(
             supported_functions
                 .iter()

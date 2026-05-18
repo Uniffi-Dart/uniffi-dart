@@ -8,9 +8,8 @@ Future<Duration> measureTime(Future<void> Function() action) async {
   return end.difference(start);
 }
 
-void main() {
-  initialize();
-  ensureInitialized();
+Future<void> main() async {
+  await ensureInitialized();
 
   test('greet', () async {
     final result = greet(who: "Somebody");

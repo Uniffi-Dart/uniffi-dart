@@ -264,15 +264,19 @@ impl<'a> DartWrapper<'a> {
                 )
             }
 
-            void ensureInitialized() {
+            void _runApiChecks() {
                 _checkApiVersion();
                 _checkApiChecksums();
+            }
+
+            Future<void> ensureInitialized({String? wasmPath}) async {
+                _runApiChecks();
             }
 
             // Backwards-compatible entry point used by existing tests
             @Deprecated("Use ensureInitialized instead")
             void initialize() {
-                ensureInitialized();
+                _runApiChecks();
             }
         }
     }
@@ -321,12 +325,7 @@ impl<'a> DartWrapper<'a> {
 
             $stream_stubs
 
-            void ensureInitialized() {
-                throw UnsupportedError($(quoted(format!("{ns} is not supported on this platform"))));
-            }
-
-            @Deprecated("Use ensureInitialized instead")
-            void initialize() {
+            Future<void> ensureInitialized({String? wasmPath}) async {
                 throw UnsupportedError($(quoted(format!("{ns} is not supported on this platform"))));
             }
         }
@@ -968,6 +967,32 @@ mod tests {
     }
 
     #[test]
+    fn native_output_uses_async_ensure_initialized_with_sync_compat_helper() {
+        let ci = ComponentInterface::new("test_ns");
+        let config = Config::from(&ci);
+        let wrapper = DartWrapper::new(&ci, &config);
+        let output = render_tokens(wrapper.generate_native());
+
+        assert!(output.contains("void _runApiChecks()"));
+        assert!(output.contains("Future<void> ensureInitialized({String? wasmPath}) async"));
+        assert!(output.contains("@Deprecated(\"Use ensureInitialized instead\")"));
+        assert!(output.contains("void initialize()"));
+        assert!(output.contains("_runApiChecks();"));
+    }
+
+    #[test]
+    fn stub_output_only_exposes_async_ensure_initialized() {
+        let ci = ComponentInterface::new("test_ns");
+        let config = Config::from(&ci);
+        let wrapper = DartWrapper::new(&ci, &config);
+        let output = render_tokens(wrapper.generate_stub());
+
+        assert!(output.contains("Future<void> ensureInitialized({String? wasmPath}) async"));
+        assert!(!output.contains("@Deprecated(\"Use ensureInitialized instead\")"));
+        assert!(!output.contains("void initialize()"));
+    }
+
+    #[test]
     fn web_output_includes_js_interop_runtime() {
         let ci = ComponentInterface::from_webidl(
             r#"
@@ -988,7 +1013,7 @@ mod tests {
         assert_stub_export_hides(
             &output,
             "test_ns_stub.dart",
-            &["ensureInitialized", "initialize", "greet"],
+            &["ensureInitialized", "greet"],
         );
         assert!(output.contains("__uniffi_test_ns.init"));
         assert!(output.contains("__uniffi_test_ns.test_ns_greet"));
@@ -1093,11 +1118,7 @@ mod tests {
         let wrapper = DartWrapper::new(&ci, &config);
         let output = render_tokens(wrapper.generate_web().expect("web generation"));
 
-        assert_stub_export_hides(
-            &output,
-            "test_ns_stub.dart",
-            &["ensureInitialized", "initialize"],
-        );
+        assert_stub_export_hides(&output, "test_ns_stub.dart", &["ensureInitialized"]);
         assert!(!output.contains("__uniffi_test_ns.test_ns_signed_big"));
         assert!(!output.contains("__uniffi_test_ns.test_ns_unsigned_big"));
         assert!(!output.contains("JSBigInt"));
@@ -1120,7 +1141,6 @@ mod tests {
             "simple_fns_stub.dart",
             &[
                 "ensureInitialized",
-                "initialize",
                 "byteToU32",
                 "getInt",
                 "getString",
