@@ -57,8 +57,8 @@ class StoredDartStringifier extends StoredForeignStringifier {
   String fromComplexType(List<double?>? values) => 'kotlin: $values';
 }
 
-void main() {
-  ensureInitialized();
+Future<void> main() async {
+  await ensureInitialized();
   // Initialize all VTables
   initForeignGettersVTable();
   initStoredForeignStringifierVTable();
