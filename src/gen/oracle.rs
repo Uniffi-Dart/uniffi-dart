@@ -1,7 +1,10 @@
 use genco::lang::dart;
 use genco::quote;
 use heck::{ToLowerCamelCase, ToUpperCamelCase};
-use uniffi_bindgen::interface::{Argument, AsType, Callable, FfiType, Object, ObjectImpl, Type};
+use uniffi_bindgen::interface::ffi::ExternalFfiMetadata;
+use uniffi_bindgen::interface::{
+    Argument, AsType, Callable, FfiType, Object, ObjectImpl, TraitKind, Type,
+};
 use uniffi_bindgen::ComponentInterface;
 
 // use super::render::{AsRenderable, Renderable};
@@ -547,7 +550,10 @@ impl DartCodeOracle {
     pub fn lower_arg_with_callback_handling(arg: &Argument) -> dart::Tokens {
         let base_lower = Self::type_lower_fn(&arg.as_type(), quote!($(Self::var_name(arg.name()))));
         match arg.as_type() {
-            Type::Object { imp: ObjectImpl::CallbackTrait, .. } => base_lower,
+            Type::Object {
+                imp: ObjectImpl::Trait(TraitKind::Both | TraitKind::ForeignOnly),
+                ..
+            } => base_lower,
             Type::CallbackInterface { .. } => quote!($base_lower.address),
             _ => base_lower,
         }
