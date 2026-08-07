@@ -320,10 +320,10 @@ impl DartCodeOracle {
                 Type::Object { .. } => quote!(Pointer<Void>),
                 Type::Enum { .. } => quote!(Int32),
                 Type::Record { .. } => quote!(RustBuffer),
-                Type::Custom { name, .. } => {
-                    let class_name = &DartCodeOracle::class_name(name);
-                    quote!($class_name)
-                }
+                // A custom type is only a Dart-level alias; across the FFI it is
+                // represented by its builtin, so recurse rather than emitting the
+                // alias name (which is not a `NativeType`).
+                Type::Custom { builtin, .. } => Self::native_type_label(Some(builtin)),
                 _ => quote!(Pointer<Void>),
             }
         } else {
@@ -359,10 +359,9 @@ impl DartCodeOracle {
                 Type::Object { .. } => quote!(Pointer<Void>),
                 Type::Enum { .. } => quote!(int),
                 Type::Record { .. } => quote!(RustBuffer),
-                Type::Custom { name, .. } => {
-                    let type_name = &DartCodeOracle::class_name(name);
-                    quote!($type_name)
-                }
+                // See `native_type_label`: custom types are Dart-level aliases and
+                // cross the FFI as their builtin.
+                Type::Custom { builtin, .. } => Self::native_dart_type_label(Some(builtin)),
                 _ => quote!(dynamic),
             }
         } else {
