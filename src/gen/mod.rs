@@ -329,7 +329,7 @@ impl BindingGenerator for DartBindingGenerator {
         match format_command.spawn().and_then(|mut c| c.wait()) {
             Ok(status) if status.success() => {}
             Ok(_) | Err(_) => {
-                println!(
+                eprintln!(
                     "WARNING: dart format failed or is unavailable; proceeding without full formatting"
                 );
             }
