@@ -66,4 +66,35 @@ pub fn roundtrip_api_result(value: APIResult) -> APIResult {
     value
 }
 
+// Regression coverage for custom types in callback interface signature
+// positions. The generator writes those FFI signatures by hand, so it must
+// lower a custom type to its builtin there. If it emits the Dart alias instead,
+// the alias is not a `NativeType` and `Pointer.fromFunction` rejects the
+// signature, so the generated Dart does not compile.
+//
+// Declared with `custom_type!` rather than `custom_newtype!`, so the fixture
+// covers both macros.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CustomId(pub String);
+
+uniffi::custom_type!(CustomId, String, {
+    lower: |id| id.0,
+    try_lift: |value| Ok(CustomId(value)),
+});
+
+/// Implemented in Dart. The custom type crosses the FFI in both directions: as
+/// the argument of `transform`, and as its return value.
+pub trait CustomIdTransformer: Send + Sync {
+    fn transform(&self, id: CustomId) -> CustomId;
+}
+
+/// Calls back into Dart, so the round trip runs at run time rather than only in
+/// the generated signatures.
+pub fn roundtrip_custom_id_through_callback(
+    transformer: Box<dyn CustomIdTransformer>,
+    id: CustomId,
+) -> CustomId {
+    transformer.transform(id)
+}
+
 uniffi::include_scaffolding!("api");

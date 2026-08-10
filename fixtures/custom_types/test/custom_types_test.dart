@@ -3,6 +3,18 @@ import 'dart:typed_data';
 import 'package:test/test.dart';
 import '../custom_types.dart';
 
+/// Records what Rust passes in, so the test can assert on both directions of the
+/// round trip.
+class UpperCaseCustomIdTransformer extends CustomIdTransformer {
+  final List<CustomId> received = <CustomId>[];
+
+  @override
+  CustomId transform(CustomId id) {
+    received.add(id);
+    return id.toUpperCase();
+  }
+}
+
 void main() {
   test('custom alias bytes and nested map helpers round trip', () {
     final response = getZenEngineResponse();
@@ -43,5 +55,22 @@ void main() {
     expect(roundTrip.primary.status, equals(200));
     expect(roundTrip.fallback!.url, equals('https://fallback.example'));
     expect(roundTrip.fallback!.status, equals(503));
+  });
+
+  // A custom type in a callback interface signature must lower to its builtin.
+  // The alias is a Dart typedef, and a typedef is not a `NativeType`, so the
+  // generated file does not compile if the generator emits the alias here.
+  test('custom type survives a callback interface round trip', () {
+    final transformer = UpperCaseCustomIdTransformer();
+
+    final result = roundtripCustomIdThroughCallback(
+      transformer: transformer,
+      id: 'id-abc123',
+    );
+
+    // Rust passed the argument to Dart without a change.
+    expect(transformer.received, equals(<String>['id-abc123']));
+    // Dart returned a value, and Rust passed it back.
+    expect(result, equals('ID-ABC123'));
   });
 }
