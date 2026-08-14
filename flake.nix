@@ -25,7 +25,7 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        msrvVersion = "1.85.0";
+        msrvVersion = "1.91.0";
 
         rustExtensions = [
           "clippy"
