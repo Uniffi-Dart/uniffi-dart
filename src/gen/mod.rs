@@ -362,6 +362,8 @@ pub fn generate_dart_bindings(
     out_dir_override: Option<&Utf8Path>,
     library_file: &Utf8Path,
     library_mode: bool,
+    crate_name: Option<String>,
+    try_format: bool,
 ) -> anyhow::Result<()> {
     if library_mode {
         // Resolve each crate's `uniffi.toml` and UDL from cargo metadata, exactly
@@ -370,14 +372,12 @@ pub fn generate_dart_bindings(
         // supplier that reads only a single file would default those and desync
         // the generated asset ids from the Native Assets build hook.
         let config_supplier =
-            uniffi_bindgen::cargo_metadata::CrateConfigSupplier::from_cargo_metadata_command(
-                false,
-            )
-            .context("Failed to build the crate config supplier from cargo metadata")?;
+            uniffi_bindgen::cargo_metadata::CrateConfigSupplier::from_cargo_metadata_command(false)
+                .context("Failed to build the crate config supplier from cargo metadata")?;
 
         uniffi_bindgen::library_mode::generate_bindings(
             library_file,
-            None, // crate name filter
+            crate_name,
             &DartBindingGenerator {},
             &config_supplier,
             // Pass the `--config` override through so uniffi merges it into each
@@ -385,7 +385,7 @@ pub fn generate_dart_bindings(
             // crate's config with the same file.
             config_file_override,
             out_dir_override.unwrap(),
-            true,
+            try_format,
         )?;
         Ok(())
     } else {
@@ -398,7 +398,7 @@ pub fn generate_dart_bindings(
             out_dir_override,
             Some(library_file),
             None,
-            true,
+            try_format,
         )
     }
 }

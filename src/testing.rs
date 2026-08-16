@@ -255,6 +255,8 @@ void main(List<String> args) async {{
         Some(&out_dir),
         &test_helper.cdylib_path()?,
         false, // library_mode
+        None,  // crate_name filter (library mode only)
+        true,  // try_format
     )?;
 
     // Copy fixture test files to output directory
