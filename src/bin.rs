@@ -40,14 +40,35 @@ fn main() {
     let mut try_format = true;
 
     let mut args = std::env::args().skip(1);
-    while let Some(arg) = args.next() {
-        // Take the value for an option, rejecting a missing value or one that is
-        // itself an option (so `--out-dir --config x` errors instead of silently
-        // using `--config` as the out-dir).
-        let mut take = |name: &str| match args.next() {
-            Some(v) if !v.starts_with("--") => v,
-            _ => {
-                eprintln!("error: `{name}` requires a value\n\n{USAGE}");
+    while let Some(raw) = args.next() {
+        // Accept both `--opt value` and `--opt=value`, matching the clap-based
+        // uniffi-bindgen / -cs / -go. Only split a leading `--flag=…`; a positional
+        // path that happens to contain `=` is left intact.
+        let (arg, inline): (String, Option<String>) = match raw.split_once('=') {
+            Some((flag, value)) if flag.starts_with("--") => {
+                (flag.to_string(), Some(value.to_string()))
+            }
+            _ => (raw, None),
+        };
+        // Take an option's value: the attached `=value` if present, otherwise the
+        // next argument — rejected if missing or itself an option (so
+        // `--out-dir --config x` errors instead of silently using `--config`).
+        let mut take = |name: &str| {
+            if let Some(value) = &inline {
+                return value.clone();
+            }
+            match args.next() {
+                Some(v) if !v.starts_with("--") => v,
+                _ => {
+                    eprintln!("error: `{name}` requires a value\n\n{USAGE}");
+                    exit(2);
+                }
+            }
+        };
+        // A boolean flag rejects an attached `=value` rather than ignoring it.
+        let reject_inline = |name: &str| {
+            if inline.is_some() {
+                eprintln!("error: `{name}` takes no value\n\n{USAGE}");
                 exit(2);
             }
         };
@@ -60,7 +81,7 @@ fn main() {
             *slot = Some(Utf8PathBuf::from(value));
         };
         match arg.as_str() {
-            "--library" => { /* library mode is implied; accepted for compatibility */ }
+            "--library" => reject_inline("--library"), // implied; accepted for compatibility
             "--out-dir" => {
                 let v = take("--out-dir");
                 set_once(&mut out_dir, "--out-dir", v);
@@ -76,8 +97,12 @@ fn main() {
                 }
                 crate_name = Some(take("--crate"));
             }
-            "--no-format" => try_format = false,
+            "--no-format" => {
+                reject_inline("--no-format");
+                try_format = false;
+            }
             "--version" => {
+                reject_inline("--version");
                 println!("uniffi_bindgen_dart {}", env!("CARGO_PKG_VERSION"));
                 return;
             }

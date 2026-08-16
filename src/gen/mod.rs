@@ -375,6 +375,9 @@ pub fn generate_dart_bindings(
             uniffi_bindgen::cargo_metadata::CrateConfigSupplier::from_cargo_metadata_command(false)
                 .context("Failed to build the crate config supplier from cargo metadata")?;
 
+        let out_dir =
+            out_dir_override.context("an output directory is required in library mode")?;
+
         uniffi_bindgen::library_mode::generate_bindings(
             library_file,
             crate_name,
@@ -384,7 +387,7 @@ pub fn generate_dart_bindings(
             // crate's config (values take precedence), rather than replacing every
             // crate's config with the same file.
             config_file_override,
-            out_dir_override.unwrap(),
+            out_dir,
             try_format,
         )?;
         Ok(())
