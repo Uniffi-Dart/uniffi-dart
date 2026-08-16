@@ -37,7 +37,8 @@ jobs:
 
       - name: Run cargo nextest
         continue-on-error: ${{ matrix.rust == 'nightly' }}
-        run: cargo nextest run --all
+        # --all-features so the `binary`-gated CLI (src/bin.rs) is compiled too.
+        run: cargo nextest run --all --all-features
 
   lints:
     name: Lints
@@ -67,4 +68,6 @@ jobs:
 
       - name: Clippy
         continue-on-error: ${{ matrix.rust == 'nightly' }}
-        run: cargo clippy -- -D warnings
+        # --all-features --all-targets so the `binary`-gated CLI (src/bin.rs) and
+        # test targets are linted, not just the default library build.
+        run: cargo clippy --all-features --all-targets -- -D warnings
