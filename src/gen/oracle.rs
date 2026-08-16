@@ -548,12 +548,15 @@ impl DartCodeOracle {
 
     /// Lower argument with special handling for callback traits
     pub fn lower_arg_with_callback_handling(arg: &Argument) -> dart::Tokens {
-        // Zero-copy `&[u8]` / `[ByRef] bytes` arguments take the `ForeignBytes`
+        // Borrowed `&[u8]` / `[ByRef] bytes` arguments take the `ForeignBytes`
         // FFI path, not the owned `RustBuffer` path. uniffi 0.32 selects
         // `FfiType::ForeignBytes` for these (see `Argument::is_borrowed_bytes`),
         // so the FFI signature already expects `ForeignBytes`; lower the
-        // `Uint8List` into one instead of a `RustBuffer`. Mirrors the
-        // `FfiConverterByRefBytes` in uniffi's Kotlin/Python backends.
+        // `Uint8List` into one instead of a `RustBuffer`. "Borrowed" is the
+        // Rust view (it borrows for the call rather than owning a RustBuffer);
+        // the emitted `lowerForeignBytes` still copies into native memory since
+        // a GC-managed `Uint8List` has no stable address. Mirrors the ByRef-bytes
+        // converter in uniffi's Kotlin/Python backends.
         if arg.is_borrowed_bytes() {
             return quote!(lowerForeignBytes($(Self::var_name(arg.name()))));
         }

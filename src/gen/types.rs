@@ -432,9 +432,24 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
             // into native memory, mirroring `toRustBuffer` above.
             ForeignBytes lowerForeignBytes(Uint8List data) {
                 final length = data.length;
+                // `ForeignBytes.len` is an Int32; fail loudly rather than
+                // silently truncate a >2GiB buffer into a bogus length.
+                if (length > 0x7fffffff) {
+                    throw ArgumentError(
+                        "Uint8List too large for a borrowed &[u8] FFI argument: " + length.toString() + " bytes");
+                }
+                final bytes = calloc<ForeignBytes>();
+                if (length == 0) {
+                    // Empty slice: pass (null, 0). `calloc<Uint8>(0)` is
+                    // platform-variable (some allocators return null and make
+                    // `calloc` throw); Rust reads (null, 0) as `&[]`. Mirrors the
+                    // ByRef-bytes converters in uniffi's Kotlin/Python backends.
+                    bytes.ref.len = 0;
+                    bytes.ref.data = Pointer<Uint8>.fromAddress(0);
+                    return bytes.ref;
+                }
                 final Pointer<Uint8> frameData = calloc<Uint8>(length);
                 frameData.asTypedList(length).setAll(0, data);
-                final bytes = calloc<ForeignBytes>();
                 bytes.ref.len = length;
                 bytes.ref.data = frameData;
                 return bytes.ref;
