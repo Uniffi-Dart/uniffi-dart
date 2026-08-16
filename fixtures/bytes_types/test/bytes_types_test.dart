@@ -11,6 +11,17 @@ void main() {
       expect(result, equals(input));
     });
 
+    test('take_bytes_by_ref (&[u8], ForeignBytes path) returns same data', () {
+      final input = [10, 20, 30, 40, 50];
+      final result = takeBytesByRef(v: Uint8List.fromList(input));
+      expect(result, equals(input));
+    });
+
+    test('take_bytes_by_ref handles empty bytes', () {
+      final result = takeBytesByRef(v: Uint8List.fromList([]));
+      expect(result, isEmpty);
+    });
+
     // test('take_bytes_with_validation handles UTF-8', () {
     //   final utf8Input = 'Hello, 世界!'.codeUnits;
     //   final result = takeBytesWithValidation(utf8Input);

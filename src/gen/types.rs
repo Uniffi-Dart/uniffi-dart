@@ -424,6 +424,22 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                 return RustBuffer.fromBytes(bytes.ref);
             }
 
+            // Lowers a `Uint8List` into a `ForeignBytes` for a borrowed `&[u8]`
+            // (`[ByRef] bytes`) argument. The Rust side only borrows the buffer
+            // for the duration of the call, so this is valid in argument
+            // position only (never lifted or read back). Dart's GC-managed
+            // `Uint8List` has no stable native address, so the bytes are copied
+            // into native memory, mirroring `toRustBuffer` above.
+            ForeignBytes lowerForeignBytes(Uint8List data) {
+                final length = data.length;
+                final Pointer<Uint8> frameData = calloc<Uint8>(length);
+                frameData.asTypedList(length).setAll(0, data);
+                final bytes = calloc<ForeignBytes>();
+                bytes.ref.len = length;
+                bytes.ref.data = frameData;
+                return bytes.ref;
+            }
+
             final class ForeignBytes extends Struct {
                 @Int32()
                 external int len;
