@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::process::Command;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use camino::Utf8Path;
 use genco::fmt;
 use genco::prelude::*;
