@@ -1,7 +1,6 @@
 use genco::lang::dart;
 use genco::quote;
 use heck::{ToLowerCamelCase, ToUpperCamelCase};
-use uniffi_bindgen::interface::ffi::ExternalFfiMetadata;
 use uniffi_bindgen::interface::{
     Argument, AsType, Callable, FfiType, Object, ObjectImpl, TraitKind, Type,
 };
