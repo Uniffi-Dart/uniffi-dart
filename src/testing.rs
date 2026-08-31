@@ -255,8 +255,6 @@ void main(List<String> args) async {{
         Some(&out_dir),
         &test_helper.cdylib_path()?,
         false, // library_mode
-        None,  // crate_name filter (library mode only)
-        true,  // try_format
     )?;
 
     // Copy fixture test files to output directory
@@ -361,14 +359,14 @@ pub fn assert_library_mode_asset_id(fixture: &str, expected_package: &str) -> Re
     // `uniffi.toml`. `udl_file` is unused on the library-mode path — pass the
     // cdylib as a harmless stand-in. `try_format = false` keeps the test from
     // depending on a `dart` toolchain.
-    gen::generate_dart_bindings(
+    gen::generate_dart_bindings_with_options(
         &cdylib_path,
         None,
         Some(&out_dir),
         &cdylib_path,
         true,
-        None,
-        false,
+        // `try_format = false` keeps this test from depending on a `dart` toolchain.
+        &gen::DartBindgenOptions { try_format: false, ..Default::default() },
     )?;
 
     let expected = format!("package:{expected_package}/");

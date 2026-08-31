@@ -320,16 +320,20 @@ impl BindingGenerator for DartBindingGenerator {
             )?;
         }
 
-        // Run full Dart formatter on the output directory as a best-effort step.
-        // This is non-fatal: failures will only emit a warning.
-        let mut format_command = Command::new("dart");
-        format_command.current_dir(&settings.out_dir).arg("format").arg(".");
-        match format_command.spawn().and_then(|mut c| c.wait()) {
-            Ok(status) if status.success() => {}
-            Ok(_) | Err(_) => {
-                eprintln!(
-                    "WARNING: dart format failed or is unavailable; proceeding without full formatting"
-                );
+        // Run the full Dart formatter on the output directory as a best-effort
+        // step — but only when formatting was requested (`--no-format` / a false
+        // `try_format` must suppress the external `dart format` too, not just the
+        // in-tree genco formatting above). Non-fatal: failures only warn.
+        if settings.try_format_code {
+            let mut format_command = Command::new("dart");
+            format_command.current_dir(&settings.out_dir).arg("format").arg(".");
+            match format_command.spawn().and_then(|mut c| c.wait()) {
+                Ok(status) if status.success() => {}
+                Ok(_) | Err(_) => {
+                    eprintln!(
+                        "WARNING: dart format failed or is unavailable; proceeding without full formatting"
+                    );
+                }
             }
         }
         Ok(())
@@ -356,14 +360,59 @@ impl BindingGenerator for DartBindingGenerator {
     }
 }
 
+/// Options controlling Dart binding generation.
+///
+/// `#[non_exhaustive]` so new knobs can be added without breaking callers:
+/// construct via [`DartBindgenOptions::default`] and set the fields you need.
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct DartBindgenOptions {
+    /// In library mode, restrict generation to this crate. `None` generates for
+    /// every UniFFI crate bundled in the library.
+    pub crate_name: Option<String>,
+    /// Run the Dart formatter on the generated output.
+    pub try_format: bool,
+}
+
+impl Default for DartBindgenOptions {
+    fn default() -> Self {
+        // Matches the historical behavior: no crate filter, formatting on.
+        Self { crate_name: None, try_format: true }
+    }
+}
+
+/// Generate Dart bindings with default options.
+///
+/// Backward-compatible entry point, kept stable so downstream `uniffi-bindgen.rs`
+/// helpers that call it directly keep compiling. Equivalent to
+/// [`generate_dart_bindings_with_options`] with [`DartBindgenOptions::default`].
+/// New knobs flow through [`DartBindgenOptions`] or the CLI (`uniffi_dart::main`),
+/// never as new positional parameters here.
 pub fn generate_dart_bindings(
     udl_file: &Utf8Path,
     config_file_override: Option<&Utf8Path>,
     out_dir_override: Option<&Utf8Path>,
     library_file: &Utf8Path,
     library_mode: bool,
-    crate_name: Option<String>,
-    try_format: bool,
+) -> anyhow::Result<()> {
+    generate_dart_bindings_with_options(
+        udl_file,
+        config_file_override,
+        out_dir_override,
+        library_file,
+        library_mode,
+        &DartBindgenOptions::default(),
+    )
+}
+
+/// Generate Dart bindings with explicit [`DartBindgenOptions`].
+pub fn generate_dart_bindings_with_options(
+    udl_file: &Utf8Path,
+    config_file_override: Option<&Utf8Path>,
+    out_dir_override: Option<&Utf8Path>,
+    library_file: &Utf8Path,
+    library_mode: bool,
+    options: &DartBindgenOptions,
 ) -> anyhow::Result<()> {
     if library_mode {
         // Resolve each crate's `uniffi.toml` and UDL from cargo metadata, exactly
@@ -380,7 +429,7 @@ pub fn generate_dart_bindings(
 
         uniffi_bindgen::library_mode::generate_bindings(
             library_file,
-            crate_name,
+            options.crate_name.clone(),
             &DartBindingGenerator {},
             &config_supplier,
             // Pass the `--config` override through so uniffi merges it into each
@@ -388,7 +437,7 @@ pub fn generate_dart_bindings(
             // crate's config with the same file.
             config_file_override,
             out_dir,
-            try_format,
+            options.try_format,
         )?;
         Ok(())
     } else {
@@ -401,7 +450,7 @@ pub fn generate_dart_bindings(
             out_dir_override,
             Some(library_file),
             None,
-            try_format,
+            options.try_format,
         )
     }
 }
