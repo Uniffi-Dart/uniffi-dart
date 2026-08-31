@@ -80,6 +80,7 @@ members = [
     "fixtures/dart_async",
     "fixtures/proc-macro",
     "fixtures/proc-macro-no-implicit-prelude",
+    "fixtures/enum_variant_collision",
     #"fixtures/*",
 ]
 

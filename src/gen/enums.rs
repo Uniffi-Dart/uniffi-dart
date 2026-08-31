@@ -156,12 +156,53 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             false
         }
 
+        // A data-carrying variant's Dart class is named `{Variant}{Enum}`, which
+        // can collide with a real top-level type of the same name (e.g. enum
+        // `Condition` variant `Field` -> `FieldCondition`, clashing with a record
+        // `FieldCondition`). Collect the names of every type that emits a
+        // top-level Dart class so a colliding variant class can be disambiguated
+        // instead of emitted twice. (Custom types lower to a typedef/converter,
+        // not a class of that name, so they are deliberately excluded.)
+        let reserved_type_names: std::collections::HashSet<String> = {
+            let ci = type_helper.get_ci();
+            ci.record_definitions()
+                .iter()
+                .map(|d| DartCodeOracle::class_name(d.name()))
+                .chain(ci.enum_definitions().iter().map(|d| DartCodeOracle::class_name(d.name())))
+                .chain(ci.object_definitions().iter().map(|d| DartCodeOracle::class_name(d.name())))
+                .chain(
+                    ci.callback_interface_definitions()
+                        .iter()
+                        .map(|d| DartCodeOracle::class_name(d.name())),
+                )
+                .collect()
+        };
+
+        // Name a data-carrying variant's Dart class `{Variant}{Enum}`, suffixing
+        // on collision so it doesn't clash with a same-named top-level type (a
+        // duplicate declaration). Used both where the class is defined and where
+        // the FfiConverter's `read` dispatches to it, so the two stay in sync.
+        let variant_class_name = |variant_name: &str| -> String {
+            let base = format!("{}{}", DartCodeOracle::class_name(variant_name), dart_cls_name);
+            if !reserved_type_names.contains(&base) {
+                return base;
+            }
+            // Loop rather than suffix once: a type literally named `{base}Variant`
+            // would otherwise reintroduce the very duplicate this guards against.
+            let mut candidate = format!("{base}Variant");
+            let mut n = 2;
+            while reserved_type_names.contains(&candidate) {
+                candidate = format!("{base}Variant{n}");
+                n += 1;
+            }
+            candidate
+        };
+
         for (index, variant_obj) in obj.variants().iter().enumerate() {
             for f in variant_obj.fields() {
                 type_helper.include_once_check(&f.as_codetype().canonical_name(), &f.as_type());
             }
-            let variant_dart_cls_name =
-                &format!("{}{}", DartCodeOracle::class_name(variant_obj.name()), dart_cls_name);
+            let variant_dart_cls_name = &variant_class_name(variant_obj.name());
 
             // Prepare constructor parameters
             let constructor_params = variant_obj
@@ -346,7 +387,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                     switch(index) {
                         $(for (index, variant) in obj.variants().iter().enumerate() =>
                         case $(index + 1):
-                            final lifted = $(format!("{}{}", DartCodeOracle::class_name(variant.name()), dart_cls_name)).read(subview);
+                            final lifted = $(variant_class_name(variant.name())).read(subview);
                             return LiftRetVal<$dart_cls_name>(lifted.value, lifted.bytesRead - subview.offsetInBytes + 4);
                         )
                         default:  throw UniffiInternalError(UniffiInternalError.unexpectedEnumCase, "Unable to determine enum variant");
