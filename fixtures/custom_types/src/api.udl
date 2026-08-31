@@ -26,8 +26,22 @@ dictionary APIResult {
     HTTPMetadata? fallback;
 };
 
+// A custom type used in callback interface signature positions. A callback
+// interface is the only place where the generator writes an FFI signature for a
+// custom type by hand, so it is the only place where the FFI type label can
+// disagree with the converter.
+[Custom]
+typedef string CustomId;
+
+callback interface CustomIdTransformer {
+    // `id` puts the custom type in argument position, and the return value puts
+    // it in return position. The generator lowers both to `RustBuffer`.
+    CustomId transform(CustomId id);
+};
+
 namespace custom_types {
     ZenEngineResponse get_zen_engine_response();
     ZenEngineResponse return_zen_engine_response(ZenEngineResponse response);
     APIResult roundtrip_api_result(APIResult value);
+    CustomId roundtrip_custom_id_through_callback(CustomIdTransformer transformer, CustomId id);
 };
