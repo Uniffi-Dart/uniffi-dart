@@ -365,7 +365,6 @@ pub fn assert_library_mode_asset_id(fixture: &str, expected_package: &str) -> Re
         Some(&out_dir),
         &cdylib_path,
         true,
-        // `try_format = false` keeps this test from depending on a `dart` toolchain.
         &gen::DartBindgenOptions { try_format: false, ..Default::default() },
     )?;
 

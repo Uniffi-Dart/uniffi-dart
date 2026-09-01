@@ -1,6 +1,6 @@
 //! The `uniffi_bindgen_dart` command-line interface, exposed as a library entry
 //! point ([`main`]) so downstream `uniffi-bindgen.rs` helpers can forward argv to
-//! it — the same shape as `uniffi::uniffi_bindgen_main()` and
+//! it — the same convention as `uniffi::uniffi_bindgen_main()` and
 //! `uniffi_bindgen_cs::main()` — instead of calling the generator function with
 //! positional arguments (which breaks whenever a new option is added).
 

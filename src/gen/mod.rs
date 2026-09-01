@@ -363,7 +363,10 @@ impl BindingGenerator for DartBindingGenerator {
 /// Options controlling Dart binding generation.
 ///
 /// `#[non_exhaustive]` so new knobs can be added without breaking callers:
-/// construct via [`DartBindgenOptions::default`] and set the fields you need.
+/// construct via [`DartBindgenOptions::default`] and assign the fields you need.
+/// (Outside this crate, `#[non_exhaustive]` disallows struct-literal and
+/// `..Default::default()` construction, so external callers use a `let mut`
+/// value: `let mut o = DartBindgenOptions::default(); o.try_format = false;`.)
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct DartBindgenOptions {
