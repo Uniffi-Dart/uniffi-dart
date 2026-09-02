@@ -2,10 +2,10 @@ import 'package:test/test.dart';
 import '../dart_async.dart';
 
 Future<Duration> measureTime(Future<void> Function() action) async {
-  final start = DateTime.now();
+  final stopwatch = Stopwatch()..start();
   await action();
-  final end = DateTime.now();
-  return end.difference(start);
+  stopwatch.stop();
+  return stopwatch.elapsed;
 }
 
 // The DELAY-based timing assertions below check a LOWER bound only: that an
@@ -93,7 +93,7 @@ void main() {
       await sleep(ms: 200);
     });
 
-    expect(time.inMilliseconds > 200, true);
+    expect(time.inMilliseconds >= 200, true);
   });
 
   test('sequential_future', () async {
@@ -103,7 +103,7 @@ void main() {
       expect(resultAlice, 'Hello, Alice!');
       expect(resultBob, 'Hello, Bob!');
     });
-    expect(time.inMilliseconds > 300, true);
+    expect(time.inMilliseconds >= 300, true);
   });
 
   test('concurrent_future', () async {
@@ -153,7 +153,7 @@ void main() {
       final resultAlice = await sayAfterWithTokio(ms: 200, who: 'Alice');
       expect(resultAlice, 'Hello, Alice (with Tokio)!');
     });
-    expect(time.inMilliseconds > 200, true);
+    expect(time.inMilliseconds >= 200, true);
   });
 
   test('fallible_function_and_method', () async {
