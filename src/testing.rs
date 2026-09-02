@@ -335,3 +335,47 @@ fn find_project_root() -> Result<Utf8PathBuf> {
 pub fn get_compile_sources() -> Result<Vec<CompileSource>> {
     todo!("Not implemented")
 }
+
+/// Generate bindings for `fixture` in **library mode** — reading the crate's
+/// committed `uniffi.toml` from cargo metadata, with no `--config` override —
+/// and assert the emitted asset id uses `expected_package`.
+///
+/// This guards the library-mode config path: if the bindgen failed to read the
+/// crate's `uniffi.toml`, `package_name` would default and the generated
+/// `_uniffiAssetId` would desync from what the Native Assets build hook
+/// registers (the Dart compiles, then fails to find the library at run time).
+/// It is the only in-repo test that exercises `generate_dart_bindings` with
+/// `library_mode = true` — every fixture `run_test` uses non-library mode.
+pub fn assert_library_mode_asset_id(fixture: &str, expected_package: &str) -> Result<()> {
+    let script_path = Utf8Path::new(".").canonicalize_utf8()?;
+    let test_helper = UniFFITestHelper::new(fixture)?;
+
+    let temp_dir = tempdir()?;
+    let out_dir = test_helper.create_out_dir(temp_dir.path(), &script_path)?;
+    test_helper.copy_cdylib_to_out_dir(&out_dir)?;
+    let cdylib_path = test_helper.cdylib_path()?;
+
+    // Library mode; no `--config`, so the config comes solely from the crate's
+    // `uniffi.toml`. `udl_file` is unused on the library-mode path — pass the
+    // cdylib as a harmless stand-in. `try_format = false` keeps the test from
+    // depending on a `dart` toolchain.
+    gen::generate_dart_bindings_with_options(
+        &cdylib_path,
+        None,
+        Some(&out_dir),
+        &cdylib_path,
+        true,
+        &gen::DartBindgenOptions { try_format: false, ..Default::default() },
+    )?;
+
+    let expected = format!("package:{expected_package}/");
+    for entry in glob::glob(&format!("{out_dir}/*.dart"))?.filter_map(Result::ok) {
+        if std::fs::read_to_string(&entry)?.contains(&expected) {
+            return Ok(());
+        }
+    }
+    bail!(
+        "no generated .dart under {out_dir} contains the asset-id prefix `{expected}` \
+         — library mode did not read the crate's uniffi.toml"
+    );
+}

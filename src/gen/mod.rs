@@ -1,15 +1,13 @@
 use std::collections::{HashMap, HashSet};
-use std::io::Read;
 use std::process::Command;
 
 use anyhow::{bail, Context, Result};
-use camino::{Utf8Path, Utf8PathBuf};
-use cargo_metadata::Metadata;
+use camino::Utf8Path;
 use genco::fmt;
 use genco::prelude::*;
 use serde::{Deserialize, Serialize};
 use toml;
-use uniffi_bindgen::{BindgenCrateConfigSupplier, BindingGenerator, Component, ComponentInterface};
+use uniffi_bindgen::{BindingGenerator, Component, ComponentInterface};
 
 // use uniffi_bindgen::MergeWith;
 use self::render::Renderer;
@@ -322,16 +320,20 @@ impl BindingGenerator for DartBindingGenerator {
             )?;
         }
 
-        // Run full Dart formatter on the output directory as a best-effort step.
-        // This is non-fatal: failures will only emit a warning.
-        let mut format_command = Command::new("dart");
-        format_command.current_dir(&settings.out_dir).arg("format").arg(".");
-        match format_command.spawn().and_then(|mut c| c.wait()) {
-            Ok(status) if status.success() => {}
-            Ok(_) | Err(_) => {
-                println!(
-                    "WARNING: dart format failed or is unavailable; proceeding without full formatting"
-                );
+        // Run the full Dart formatter on the output directory as a best-effort
+        // step — but only when formatting was requested (`--no-format` / a false
+        // `try_format` must suppress the external `dart format` too, not just the
+        // in-tree genco formatting above). Non-fatal: failures only warn.
+        if settings.try_format_code {
+            let mut format_command = Command::new("dart");
+            format_command.current_dir(&settings.out_dir).arg("format").arg(".");
+            match format_command.spawn().and_then(|mut c| c.wait()) {
+                Ok(status) if status.success() => {}
+                Ok(_) | Err(_) => {
+                    eprintln!(
+                        "WARNING: dart format failed or is unavailable; proceeding without full formatting"
+                    );
+                }
             }
         }
         Ok(())
@@ -358,88 +360,37 @@ impl BindingGenerator for DartBindingGenerator {
     }
 }
 
-pub struct LocalConfigSupplier(String);
-impl BindgenCrateConfigSupplier for LocalConfigSupplier {
-    fn get_udl(&self, _crate_name: &str, _udl_name: &str) -> Result<String> {
-        let file = std::fs::File::open(self.0.clone())?;
-        let mut reader = std::io::BufReader::new(file);
-        let mut content = String::new();
-        reader.read_to_string(&mut content)?;
-        Ok(content)
+/// Options controlling Dart binding generation.
+///
+/// `#[non_exhaustive]` so new knobs can be added without breaking callers:
+/// construct via [`DartBindgenOptions::default`] and assign the fields you need.
+/// (Outside this crate, `#[non_exhaustive]` disallows struct-literal and
+/// `..Default::default()` construction, so external callers use a `let mut`
+/// value: `let mut o = DartBindgenOptions::default(); o.try_format = false;`.)
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct DartBindgenOptions {
+    /// In library mode, restrict generation to this crate. `None` generates for
+    /// every UniFFI crate bundled in the library.
+    pub crate_name: Option<String>,
+    /// Run the Dart formatter on the generated output.
+    pub try_format: bool,
+}
+
+impl Default for DartBindgenOptions {
+    fn default() -> Self {
+        // Matches the historical behavior: no crate filter, formatting on.
+        Self { crate_name: None, try_format: true }
     }
 }
 
-/// Config supplier for library mode that locates UDL files from dependency crates.
-/// This implementation matches uniffi_bindgen's CrateConfigSupplier approach.
-pub struct ConfigFileSupplier {
-    config_file_path: String,
-    crate_paths: HashMap<String, Utf8PathBuf>,
-}
-
-impl ConfigFileSupplier {
-    /// Create a new ConfigFileSupplier from cargo metadata and a config file path
-    pub fn new(config_file_path: String, metadata: Metadata) -> Self {
-        // Build a map of crate names to their manifest directories
-        // This matches uniffi_bindgen's CrateConfigSupplier::from(Metadata) implementation
-        let crate_paths: HashMap<String, Utf8PathBuf> = metadata
-            .packages
-            .iter()
-            .flat_map(|p| {
-                p.targets
-                    .iter()
-                    .filter(|t| {
-                        !t.is_bin()
-                            && !t.is_example()
-                            && !t.is_test()
-                            && !t.is_bench()
-                            && !t.is_custom_build()
-                    })
-                    .filter_map(|t| {
-                        p.manifest_path.parent().map(|p| (t.name.replace('-', "_"), p.to_owned()))
-                    })
-            })
-            .collect();
-
-        Self { config_file_path, crate_paths }
-    }
-}
-
-impl BindgenCrateConfigSupplier for ConfigFileSupplier {
-    fn get_udl(&self, crate_name: &str, udl_name: &str) -> Result<String> {
-        // This implementation matches uniffi_bindgen's CrateConfigSupplier::get_udl
-        let path = self
-            .crate_paths
-            .get(crate_name)
-            .context(format!("No path known to UDL files for '{crate_name}'"))?
-            .join("src")
-            .join(format!("{udl_name}.udl"));
-        if path.exists() {
-            Ok(std::fs::read_to_string(path)?)
-        } else {
-            bail!(format!("No UDL file found at '{path}'"));
-        }
-    }
-
-    fn get_toml(&self, _crate_name: &str) -> Result<Option<toml::value::Table>> {
-        // Load the config file specified for this binding generation
-        let file = std::fs::File::open(self.config_file_path.clone())?;
-        let mut reader = std::io::BufReader::new(file);
-        let mut content = String::new();
-        reader.read_to_string(&mut content)?;
-        let toml_value: toml::value::Value = toml::from_str(&content)?;
-        if let toml::value::Value::Table(table) = toml_value {
-            Ok(Some(table))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn get_toml_path(&self, crate_name: &str) -> Option<Utf8PathBuf> {
-        // This implementation matches uniffi_bindgen's CrateConfigSupplier::get_toml_path
-        self.crate_paths.get(crate_name).map(|p| p.join("uniffi.toml"))
-    }
-}
-
+/// Generate Dart bindings with default options.
+///
+/// Backward-compatible entry point, kept stable so downstream `uniffi-bindgen.rs`
+/// helpers that call it directly keep compiling. Equivalent to
+/// [`generate_dart_bindings_with_options`] with [`DartBindgenOptions::default`].
+/// New knobs flow through [`DartBindgenOptions`] or the CLI (`uniffi_dart::main`),
+/// never as new positional parameters here.
 pub fn generate_dart_bindings(
     udl_file: &Utf8Path,
     config_file_override: Option<&Utf8Path>,
@@ -447,27 +398,49 @@ pub fn generate_dart_bindings(
     library_file: &Utf8Path,
     library_mode: bool,
 ) -> anyhow::Result<()> {
-    if library_mode {
-        // In library mode, we need cargo metadata to locate UDL files from dependencies
-        let metadata = cargo_metadata::MetadataCommand::new()
-            .exec()
-            .context("Failed to run cargo metadata")?;
+    generate_dart_bindings_with_options(
+        udl_file,
+        config_file_override,
+        out_dir_override,
+        library_file,
+        library_mode,
+        &DartBindgenOptions::default(),
+    )
+}
 
-        let config_supplier: Box<dyn BindgenCrateConfigSupplier> =
-            if let Some(config_path) = config_file_override {
-                Box::new(ConfigFileSupplier::new(config_path.to_string(), metadata))
-            } else {
-                Box::new(LocalConfigSupplier(udl_file.to_string()))
-            };
+/// Generate Dart bindings with explicit [`DartBindgenOptions`].
+pub fn generate_dart_bindings_with_options(
+    udl_file: &Utf8Path,
+    config_file_override: Option<&Utf8Path>,
+    out_dir_override: Option<&Utf8Path>,
+    library_file: &Utf8Path,
+    library_mode: bool,
+    options: &DartBindgenOptions,
+) -> anyhow::Result<()> {
+    if library_mode {
+        // Resolve each crate's `uniffi.toml` and UDL from cargo metadata, exactly
+        // as uniffi-bindgen itself does. This is what makes `package_name` /
+        // `cdylib_name` (and any per-crate config) resolve correctly — a custom
+        // supplier that reads only a single file would default those and desync
+        // the generated asset ids from the Native Assets build hook.
+        let config_supplier =
+            uniffi_bindgen::cargo_metadata::CrateConfigSupplier::from_cargo_metadata_command(false)
+                .context("Failed to build the crate config supplier from cargo metadata")?;
+
+        let out_dir =
+            out_dir_override.context("an output directory is required in library mode")?;
 
         uniffi_bindgen::library_mode::generate_bindings(
             library_file,
-            None, // crate name filter
+            options.crate_name.clone(),
             &DartBindingGenerator {},
-            config_supplier.as_ref(),
-            None,
-            out_dir_override.unwrap(),
-            true,
+            &config_supplier,
+            // Pass the `--config` override through so uniffi merges it into each
+            // crate's config (values take precedence), rather than replacing every
+            // crate's config with the same file.
+            config_file_override,
+            out_dir,
+            options.try_format,
         )?;
         Ok(())
     } else {
@@ -480,7 +453,7 @@ pub fn generate_dart_bindings(
             out_dir_override,
             Some(library_file),
             None,
-            true,
+            options.try_format,
         )
     }
 }

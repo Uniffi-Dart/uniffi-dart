@@ -1,0 +1,6 @@
+# A non-default package_name so the library-mode test can prove the bindgen
+# reads each crate's uniffi.toml (rather than defaulting, which would desync the
+# generated asset id from the Native Assets build hook).
+[bindings.dart]
+package_name = "custom_lib_pkg"
+cdylib_name = "library_config"
