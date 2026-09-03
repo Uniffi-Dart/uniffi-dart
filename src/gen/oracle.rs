@@ -557,12 +557,15 @@ impl DartCodeOracle {
         // a GC-managed `Uint8List` has no stable address. Mirrors the ByRef-bytes
         // converter in uniffi's Kotlin/Python backends.
         //
-        // The copy is allocated from `arena` — an `Arena` the call site wraps
-        // around the FFI call (see `wrap_ffi_call_stmt`/`wrap_ffi_call_expr`) so
-        // the native memory is freed after the call instead of leaking. Any call
-        // site emitting a borrowed-bytes argument therefore has `arena` in scope.
+        // The copy is allocated from `_uniffiArena` — an `Arena` the call site
+        // wraps around the FFI call (see `wrap_ffi_call_stmt`/`wrap_ffi_call_expr`)
+        // so the native memory is freed after the call instead of leaking. Any call
+        // site emitting a borrowed-bytes argument therefore has `_uniffiArena` in
+        // scope. The name is `_uniffi`-prefixed so it cannot collide with a
+        // host-supplied argument name (which are lower-camel-cased, never
+        // `_`-prefixed).
         if arg.is_borrowed_bytes() {
-            return quote!(lowerForeignBytes($(Self::var_name(arg.name())), arena));
+            return quote!(lowerForeignBytes($(Self::var_name(arg.name())), _uniffiArena));
         }
         let base_lower = Self::type_lower_fn(&arg.as_type(), quote!($(Self::var_name(arg.name()))));
         match arg.as_type() {
@@ -587,11 +590,19 @@ impl DartCodeOracle {
     ///
     /// When no argument is borrowed bytes this is exactly `return call;`, so
     /// ordinary calls keep their previous shape with zero overhead. Otherwise an
-    /// `Arena` named `arena` (which the lowering allocates from) wraps the call:
+    /// `Arena` named `_uniffiArena` (which the lowering allocates from) wraps the
+    /// call:
     /// - sync: `using` frees the arena on scope exit, including if the call
     ///   throws — the Rust side only borrows for the duration of the call;
     /// - async: the Rust future holds the borrow until it settles, so the arena
     ///   is released via `whenComplete` after the returned future completes.
+    ///
+    /// NOTE: the async+borrowed-bytes combination is currently unreachable —
+    /// uniffi 0.32 rejects a borrowed `&[u8]` on an `async fn` (the returned
+    /// future would capture the raw pointer and is required to be `Send + 'static`,
+    /// which a borrow is not). The `is_async` arm is therefore defensive: it keeps
+    /// the free correct-by-construction if uniffi ever gains owned-copy async
+    /// by-ref support, rather than silently leaking.
     pub fn wrap_ffi_call_stmt(
         has_borrowed: bool,
         is_async: bool,
@@ -602,12 +613,12 @@ impl DartCodeOracle {
         }
         if is_async {
             quote! {
-                final arena = Arena();
-                return $call.whenComplete(arena.releaseAll);
+                final _uniffiArena = Arena();
+                return $call.whenComplete(_uniffiArena.releaseAll);
             }
         } else {
             quote! {
-                return using((Arena arena) {
+                return using((Arena _uniffiArena) {
                     return $call;
                 });
             }
@@ -619,7 +630,7 @@ impl DartCodeOracle {
     /// async constructor uses the statement form.
     pub fn wrap_ffi_call_expr(has_borrowed: bool, call: dart::Tokens) -> dart::Tokens {
         if has_borrowed {
-            quote!(using((Arena arena) => $call))
+            quote!(using((Arena _uniffiArena) => $call))
         } else {
             call
         }

@@ -658,6 +658,18 @@ fn trait_method_call(
 ) -> dart::Tokens {
     assert_eq!(method.arguments().len(), arg_exprs.len());
 
+    // These derived trait methods (Display/Debug/Eq/Hash) never take a borrowed
+    // `&[u8]`, so — unlike the other call-site generators — this path does not wrap
+    // the call in an `Arena` and lowers args via `type_lower_fn` directly. If a
+    // future trait-derived method DID take borrowed bytes, `type_lower_fn` would
+    // fall through to the owned `RustBuffer` lowering (the wrong FFI type) and the
+    // native copy would leak — such a method must be routed through
+    // `wrap_ffi_call_stmt` instead.
+    debug_assert!(
+        method.arguments().iter().all(|a| !a.is_borrowed_bytes()),
+        "trait_method_call does not handle borrowed &[u8] args; route through wrap_ffi_call_stmt",
+    );
+
     let ffi_name = method.ffi_func().name();
 
     let error_handler = if let Some(error_type) = method.throws_type() {
