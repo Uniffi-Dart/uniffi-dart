@@ -42,6 +42,24 @@ jobs:
           uniffi-dart = { path = "../main" }
           EOF
 
+      - name: Bump payjoin-ffi to uniffi 0.32
+        # rust-payjoin still pins uniffi 0.31.2; its 0.31 metadata cannot be read
+        # by this PR's 0.32 bindgen (`Unexpected metadata type code`). Bump its
+        # own uniffi to 0.32 so the metadata matches — payjoin-ffi compiles and
+        # its Dart suite passes unchanged on 0.32 (probed: 24 tests). Removed once
+        # rust-payjoin ships 0.32 upstream.
+        run: |
+          sed -i 's/uniffi = { version = "0.31.2"/uniffi = { version = "0.32"/g' rust-payjoin/payjoin-ffi/Cargo.toml
+          # payjoin's native-assets build pins rustc 1.85.1 (< uniffi 0.32's 1.91
+          # floor). native_toolchain_rust requires an *exact* channel and a
+          # `targets` list, so pin 1.91.0 with just the Linux host target (the CI
+          # only builds for the host).
+          for f in $(find rust-payjoin -name rust-toolchain.toml); do
+            printf '[toolchain]\nchannel = "1.91.0"\ntargets = ["x86_64-unknown-linux-gnu"]\n' > "$f"
+          done
+          echo "--- payjoin-ffi uniffi pins now ---"
+          grep -n 'uniffi = ' rust-payjoin/payjoin-ffi/Cargo.toml || true
+
       - name: Generate dart bindings and run tests
         run: cd rust-payjoin/payjoin-ffi/dart && bash scripts/generate_bindings.sh && dart test
 
@@ -71,13 +89,45 @@ jobs:
       - name: Use cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Patch uniffi-dart dependency
+      - name: Fetch and bump bdk-ffi to uniffi 0.32
+        # bdk-dart re-exports bdk-ffi, pinned by git rev at uniffi 0.31.2 — so the
+        # metadata bdk_dart_ffi embeds is 0.31 and this PR's 0.32 bindgen cannot
+        # read it. Clone that exact rev, bump its uniffi to 0.32 (it compiles
+        # clean on 0.32), and `[patch]` bdk-dart onto the local copy. Removed once
+        # bdk-ffi ships 0.32 upstream.
         run: |
+          BDK_FFI_REV=17c48b8b52ba81cdc58531e75ad1165be0cc25d9
+          git init -q bdk-ffi
+          git -C bdk-ffi remote add origin https://github.com/bitcoindevkit/bdk-ffi.git
+          git -C bdk-ffi fetch --depth 1 origin "$BDK_FFI_REV" -q
+          git -C bdk-ffi checkout -q FETCH_HEAD
+          sed -i 's/uniffi = { version = "=0.31.2"/uniffi = { version = "0.32"/g' bdk-ffi/bdk-ffi/Cargo.toml
+          echo "--- bdk-ffi uniffi pins now ---"
+          grep -n 'uniffi = ' bdk-ffi/bdk-ffi/Cargo.toml || true
+
+      - name: Patch bdk-dart onto uniffi 0.32 (uniffi, uniffi-dart, bdk-ffi)
+        run: |
+          # bdk-dart's own native crate also pins uniffi 0.31.2 — bump it too.
+          sed -i 's/uniffi = { version = "=0.31.2"/uniffi = { version = "0.32"/g' bdk-dart/native/Cargo.toml
           cat >> bdk-dart/native/Cargo.toml << 'EOF'
 
           [patch.'https://github.com/Uniffi-Dart/uniffi-dart']
           uniffi-dart = { path = "../../main" }
+
+          [patch.'https://github.com/bitcoindevkit/bdk-ffi.git']
+          bdk-ffi = { path = "../../bdk-ffi/bdk-ffi" }
           EOF
+          # Lockfile pins uniffi 0.31.2 / the old bdk-ffi rev; drop it so the bump
+          # and patches re-resolve cleanly.
+          rm -f bdk-dart/native/Cargo.lock
+          # bdk-dart/bdk-ffi pin rustc 1.85.1, but uniffi 0.32 needs 1.91.
+          # native_toolchain_rust requires an *exact* channel and a `targets`
+          # list, so pin 1.91.0 with just the Linux host target.
+          for f in $(find bdk-dart bdk-ffi -name rust-toolchain.toml); do
+            printf '[toolchain]\nchannel = "1.91.0"\ntargets = ["x86_64-unknown-linux-gnu"]\n' > "$f"
+          done
+          echo "--- bdk-dart native uniffi pins now ---"
+          grep -n 'uniffi = ' bdk-dart/native/Cargo.toml || true
 
       - name: Generate dart bindings and run tests
         run: cd bdk-dart && bash scripts/generate_bindings.sh && dart test
