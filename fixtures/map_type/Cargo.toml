@@ -1,19 +1,24 @@
 [package]
-name = "docstring-proc-macro"
+name = "map_type"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [lib]
-name = "docstring_proc_macro"
+name = "map_type"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-thiserror = "1.0"
-uniffi = { workspace = true }
+uniffi = { workspace = true, features = [
+  "build",
+] }
 
 [build-dependencies]
 uniffi-dart = { path = "../../", features = ["build"] }
-camino = "1"
 
 [dev-dependencies]
 uniffi-dart = { path = "../../", features = ["bindgen-tests"] }
+uniffi = { workspace = true, features = [
+  "bindgen-tests",
+] }
+anyhow = "1"

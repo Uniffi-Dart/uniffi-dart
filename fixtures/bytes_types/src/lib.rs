@@ -7,6 +7,13 @@ fn take_bytes(v: Vec<u8>) -> Vec<u8> {
     v
 }
 
+// Borrowed `&[u8]` argument: uniffi 0.32 lowers this through the zero-copy
+// `ForeignBytes` FFI path rather than the owned `RustBuffer` path.
+#[uniffi::export]
+fn take_bytes_by_ref(v: &[u8]) -> Vec<u8> {
+    v.to_vec()
+}
+
 #[uniffi::export]
 fn take_bytes_with_validation(v: Vec<u8>) -> Vec<u8> {
     // Validate that it's valid UTF-8 if it should be

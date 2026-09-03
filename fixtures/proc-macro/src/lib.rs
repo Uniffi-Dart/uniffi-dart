@@ -29,8 +29,23 @@ impl Object {
         Arc::new(Self)
     }
 
+    // Constructor taking a borrowed `&[u8]` — exercises the sync constructor
+    // initializer-list call site (`_ptr = using((Arena _uniffiArena) => rustCall(...))`,
+    // via `wrap_ffi_call_expr`), a distinct generator from the method/function ones.
+    #[uniffi::constructor]
+    fn from_bytes(data: &[u8]) -> Arc<Self> {
+        let _ = data.len();
+        Arc::new(Self)
+    }
+
     fn is_heavy(&self) -> MaybeBool {
         MaybeBool::Uncertain
+    }
+
+    // Borrowed `&[u8]` on a *method* — exercises the object method call site's
+    // borrowed-bytes free (distinct from the free-function one).
+    fn borrowed_bytes_len(&self, data: &[u8]) -> u64 {
+        data.len() as u64
     }
 
     fn get_trait(&self, inc: Option<Arc<dyn Trait>>) -> Arc<dyn Trait> {
@@ -197,6 +212,36 @@ pub fn callback_get_other_multiply(
     b: i32,
 ) -> i32 {
     callback.get_other_callback_interface().multiply(a, b)
+}
+
+// Borrowed `&[u8]` argument (proc-macro `by_ref`): exercises the `ForeignBytes`
+// lowering and the arena-scoped free the call site emits around it. Sums the
+// bytes so a caller can assert the buffer content crossed the FFI boundary
+// intact — and, called in a loop, that the per-call native copy does not leak.
+#[uniffi::export]
+pub fn sum_borrowed_bytes(data: &[u8]) -> u64 {
+    data.iter().map(|&b| u64::from(b)).sum()
+}
+
+// A fallible variant, so the throwing call-site shape (which must still free the
+// borrowed copy on the error path) is exercised. Errors on a NON-empty input (a
+// leading 0xFF sentinel) so the error path unwinds with a real data buffer to
+// free through `using`, not merely the empty `(null, 0)` struct.
+#[uniffi::export]
+pub fn sum_borrowed_bytes_checked(data: &[u8]) -> Result<u64, BasicError> {
+    if data.first() == Some(&0xFF) {
+        return Err(BasicError::OsError);
+    }
+    Ok(data.iter().map(|&b| u64::from(b)).sum())
+}
+
+// Void return with a borrowed `&[u8]`: exercises the `void` call-site branch
+// (`rustCall((status){...})`) wrapped in the arena — distinct from the non-void
+// `rustCallWithLifter` branch the functions above hit.
+#[uniffi::export]
+pub fn consume_borrowed_bytes(data: &[u8]) {
+    // Touch the bytes so the argument is genuinely lowered/read.
+    let _ = data.iter().fold(0u64, |acc, &b| acc.wrapping_add(u64::from(b)));
 }
 
 uniffi::include_scaffolding!("api");

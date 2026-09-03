@@ -155,5 +155,50 @@ void main() {
       fromFunction.dispose();
       functionRoundtrip.dispose();
     });
+
+    test('borrowed &[u8] arguments cross the boundary intact (all call shapes)', () {
+      // Free function (non-void): content crosses the boundary intact.
+      expect(sumBorrowedBytes(data: Uint8List.fromList([1, 2, 3])), 6);
+      // Empty slice hits the (null, 0) path — must not throw or miscount.
+      expect(sumBorrowedBytes(data: Uint8List.fromList([])), 0);
+
+      // Method on an object (a distinct call-site generator from the free fn).
+      final obj = Object();
+      expect(obj.borrowedBytesLen(data: Uint8List.fromList([9, 8, 7, 6])), 4);
+      expect(obj.borrowedBytesLen(data: Uint8List.fromList([])), 0);
+
+      // Constructor taking &[u8] (initializer-list call site — its own generator).
+      final fromBytes = Object.fromBytes(data: Uint8List.fromList([1, 2, 3]));
+      expect(fromBytes.isHeavy(), MaybeBool.uncertain);
+      Object.fromBytes(data: Uint8List.fromList([])).dispose(); // empty ctor path
+      fromBytes.dispose();
+
+      // Void-return call site (rustCall branch, not rustCallWithLifter).
+      consumeBorrowedBytes(data: Uint8List.fromList([1, 2, 3]));
+      consumeBorrowedBytes(data: Uint8List.fromList([]));
+
+      // Fallible variant: success path, and an error path triggered by a NON-empty
+      // input (leading 0xFF) so the throw unwinds through `using` with a real data
+      // buffer to free (not just the empty (null,0) struct).
+      expect(sumBorrowedBytesChecked(data: Uint8List.fromList([10, 20])), 30);
+      expect(
+        () => sumBorrowedBytesChecked(data: Uint8List.fromList([0xFF, 1, 2])),
+        throwsA(isA<OsExceptionBasicException>()),
+      );
+
+      // Smoke test only: many calls confirm the emitted lower+free code compiles
+      // and does not crash / double-free over repeated use. NOTE: this does NOT
+      // detect the native-memory leak this fix addresses — a leak does not fail a
+      // functional test (memory grows, assertions still pass). Catching the leak
+      // itself needs an RSS/sanitizer check (tracked as a follow-up).
+      var acc = 0;
+      final payload = Uint8List.fromList(List<int>.generate(64, (i) => i & 0xff));
+      for (var i = 0; i < 50000; i++) {
+        acc += sumBorrowedBytes(data: payload);
+      }
+      expect(acc, 50000 * 2016); // sum(0..63) == 2016
+
+      obj.dispose();
+    });
   });
 }

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use uniffi_bindgen::pipeline::general::nodes::Literal;
+use uniffi_bindgen::interface::Literal;
 
 /// A trait tor the implementation.
 pub trait CodeType: Debug {
