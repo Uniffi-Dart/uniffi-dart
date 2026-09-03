@@ -556,8 +556,13 @@ impl DartCodeOracle {
         // the emitted `lowerForeignBytes` still copies into native memory since
         // a GC-managed `Uint8List` has no stable address. Mirrors the ByRef-bytes
         // converter in uniffi's Kotlin/Python backends.
+        //
+        // The copy is allocated from `arena` — an `Arena` the call site wraps
+        // around the FFI call (see `wrap_ffi_call_stmt`/`wrap_ffi_call_expr`) so
+        // the native memory is freed after the call instead of leaking. Any call
+        // site emitting a borrowed-bytes argument therefore has `arena` in scope.
         if arg.is_borrowed_bytes() {
-            return quote!(lowerForeignBytes($(Self::var_name(arg.name()))));
+            return quote!(lowerForeignBytes($(Self::var_name(arg.name())), arena));
         }
         let base_lower = Self::type_lower_fn(&arg.as_type(), quote!($(Self::var_name(arg.name()))));
         match arg.as_type() {
@@ -567,6 +572,56 @@ impl DartCodeOracle {
             } => base_lower,
             Type::CallbackInterface { .. } => quote!($base_lower.address),
             _ => base_lower,
+        }
+    }
+
+    /// True if any argument takes the borrowed `&[u8]` (`ForeignBytes`) path,
+    /// whose native copy the call site must free after the FFI call.
+    pub fn any_borrowed_bytes(args: &[&Argument]) -> bool {
+        args.iter().any(|a| a.is_borrowed_bytes())
+    }
+
+    /// Wrap a full FFI-call statement so the native copies of borrowed `&[u8]`
+    /// arguments (see `lower_arg_with_callback_handling`) are freed after the
+    /// call. `call` is the call expression, without `return`/`;`.
+    ///
+    /// When no argument is borrowed bytes this is exactly `return call;`, so
+    /// ordinary calls keep their previous shape with zero overhead. Otherwise an
+    /// `Arena` named `arena` (which the lowering allocates from) wraps the call:
+    /// - sync: `using` frees the arena on scope exit, including if the call
+    ///   throws — the Rust side only borrows for the duration of the call;
+    /// - async: the Rust future holds the borrow until it settles, so the arena
+    ///   is released via `whenComplete` after the returned future completes.
+    pub fn wrap_ffi_call_stmt(
+        has_borrowed: bool,
+        is_async: bool,
+        call: dart::Tokens,
+    ) -> dart::Tokens {
+        if !has_borrowed {
+            return quote!(return $call;);
+        }
+        if is_async {
+            quote! {
+                final arena = Arena();
+                return $call.whenComplete(arena.releaseAll);
+            }
+        } else {
+            quote! {
+                return using((Arena arena) {
+                    return $call;
+                });
+            }
+        }
+    }
+
+    /// Expression form of [`wrap_ffi_call_stmt`] for constructor initializer
+    /// lists (`_ptr = <expr>`), which cannot host statements. Sync only — the
+    /// async constructor uses the statement form.
+    pub fn wrap_ffi_call_expr(has_borrowed: bool, call: dart::Tokens) -> dart::Tokens {
+        if has_borrowed {
+            quote!(using((Arena arena) => $call))
+        } else {
+            call
         }
     }
 
