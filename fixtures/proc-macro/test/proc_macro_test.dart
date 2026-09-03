@@ -155,5 +155,36 @@ void main() {
       fromFunction.dispose();
       functionRoundtrip.dispose();
     });
+
+    test('borrowed &[u8] arguments cross the boundary and do not leak', () {
+      // Free function: content crosses the boundary intact.
+      expect(sumBorrowedBytes(data: Uint8List.fromList([1, 2, 3])), 6);
+      // Empty slice hits the (null, 0) path — must not throw or miscount.
+      expect(sumBorrowedBytes(data: Uint8List.fromList([])), 0);
+
+      // Method on an object (a distinct call site from the free function).
+      final obj = Object();
+      expect(obj.borrowedBytesLen(data: Uint8List.fromList([9, 8, 7, 6])), 4);
+      expect(obj.borrowedBytesLen(data: Uint8List.fromList([])), 0);
+
+      // Fallible variant: success path and error path both free the copy.
+      expect(sumBorrowedBytesChecked(data: Uint8List.fromList([10, 20])), 30);
+      expect(
+        () => sumBorrowedBytesChecked(data: Uint8List.fromList([])),
+        throwsA(isA<OsExceptionBasicException>()),
+      );
+
+      // Repeated calls exercise the per-call alloc/free: a leaked native copy
+      // (the bug this fixes) would grow memory without bound; a double-free
+      // would crash. 50k iterations complete cleanly when the arena frees each.
+      var acc = 0;
+      final payload = Uint8List.fromList(List<int>.generate(64, (i) => i & 0xff));
+      for (var i = 0; i < 50000; i++) {
+        acc += sumBorrowedBytes(data: payload);
+      }
+      expect(acc, 50000 * 2016); // sum(0..63) == 2016
+
+      obj.dispose();
+    });
   });
 }
