@@ -33,6 +33,12 @@ impl Object {
         MaybeBool::Uncertain
     }
 
+    // Borrowed `&[u8]` on a *method* — exercises the object method call site's
+    // borrowed-bytes free (distinct from the free-function one).
+    fn borrowed_bytes_len(&self, data: &[u8]) -> u64 {
+        data.len() as u64
+    }
+
     fn get_trait(&self, inc: Option<Arc<dyn Trait>>) -> Arc<dyn Trait> {
         inc.unwrap_or_else(|| Arc::new(TraitImpl {}))
     }
@@ -197,6 +203,25 @@ pub fn callback_get_other_multiply(
     b: i32,
 ) -> i32 {
     callback.get_other_callback_interface().multiply(a, b)
+}
+
+// Borrowed `&[u8]` argument (proc-macro `by_ref`): exercises the `ForeignBytes`
+// lowering and the arena-scoped free the call site emits around it. Sums the
+// bytes so a caller can assert the buffer content crossed the FFI boundary
+// intact — and, called in a loop, that the per-call native copy does not leak.
+#[uniffi::export]
+pub fn sum_borrowed_bytes(data: &[u8]) -> u64 {
+    data.iter().map(|&b| u64::from(b)).sum()
+}
+
+// A fallible variant, so the throwing call-site shape (which must still free the
+// borrowed copy on the error path) is exercised too.
+#[uniffi::export]
+pub fn sum_borrowed_bytes_checked(data: &[u8]) -> Result<u64, BasicError> {
+    if data.is_empty() {
+        return Err(BasicError::OsError);
+    }
+    Ok(data.iter().map(|&b| u64::from(b)).sum())
 }
 
 uniffi::include_scaffolding!("api");
