@@ -497,4 +497,16 @@ pub async fn mirror_delay_using_trait(obj: Arc<dyn AsyncParserMirror>, delay_ms:
     obj.mirror_delay(delay_ms).await
 }
 
+// A bounded primitive result exercises failures after the Dart Future resolves.
+#[uniffi::export(with_foreign)]
+#[async_trait::async_trait]
+pub trait AsyncByteSource: Send + Sync {
+    async fn value(&self) -> Result<u8, ParserError>;
+}
+
+#[uniffi::export]
+pub async fn read_async_byte(source: Arc<dyn AsyncByteSource>) -> Result<u8, ParserError> {
+    source.value().await
+}
+
 uniffi::include_scaffolding!("api");
