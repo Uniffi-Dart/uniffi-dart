@@ -93,4 +93,43 @@ impl Registry {
     }
 }
 
+// Keep lifecycle counts separate from the other fixture objects/finalizers.
+static DISPOSAL_DROPS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+#[derive(uniffi::Object)]
+pub struct DisposalProbe;
+
+#[uniffi::export]
+impl DisposalProbe {
+    #[uniffi::constructor]
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self)
+    }
+
+    pub fn greet(&self, name: String) -> String {
+        format!("Hello {name}")
+    }
+
+    pub fn as_greeter(self: Arc<Self>) -> Arc<dyn Greeter> {
+        self
+    }
+}
+
+impl Greeter for DisposalProbe {
+    fn greet(&self, name: String) -> String {
+        self.greet(name)
+    }
+}
+
+impl Drop for DisposalProbe {
+    fn drop(&mut self) {
+        DISPOSAL_DROPS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[uniffi::export]
+pub fn disposal_drop_count() -> u32 {
+    DISPOSAL_DROPS.load(std::sync::atomic::Ordering::SeqCst)
+}
+
 uniffi::include_scaffolding!("api");

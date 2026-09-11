@@ -268,6 +268,7 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
 
         class $cls_name $implements_clause {
             late final Pointer<Void> _ptr;
+            bool _uniffiDisposed = false;
 
             // Private constructor for internal use / lift
             $cls_name._(this._ptr) {
@@ -284,10 +285,18 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
             }
 
             Pointer<Void> uniffiClonePointer() {
+                if (_uniffiDisposed) {
+                    throw StateError($(quoted(format!("Cannot use a disposed {cls_name}"))));
+                }
                 return rustCall((status) => $ffi_object_clone_name(_ptr, status));
             }
 
             void dispose() {
+                if (_uniffiDisposed) {
+                    return;
+                }
+                // Mark closed before calling Rust, including reentrant disposal.
+                _uniffiDisposed = true;
                 _$finalizer_cls_name.detach(this);
                 rustCall((status) => $ffi_object_free_name(_ptr, status));
             }
@@ -356,13 +365,22 @@ fn generate_callback_trait_rust_impl(
                     rustCall((status) => $ffi_object_free_name(ptr, status));
                 });
 
-            Pointer<Void> _ptr;
+            final Pointer<Void> _ptr;
+            bool _uniffiDisposed = false;
 
             Pointer<Void> uniffiClonePointer() {
+                if (_uniffiDisposed) {
+                    throw StateError($(quoted(format!("Cannot use a disposed {cls_name}"))));
+                }
                 return rustCall((status) => $ffi_object_clone_name(_ptr, status));
             }
 
             void dispose() {
+                if (_uniffiDisposed) {
+                    return;
+                }
+                // Mark closed before calling Rust, including reentrant disposal.
+                _uniffiDisposed = true;
                 $(&finalizer_field).detach(this);
                 rustCall((status) => $ffi_object_free_name(_ptr, status));
             }
@@ -752,16 +770,25 @@ fn generate_trait_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> 
                     rustCall((status) => $ffi_object_free_name(ptr, status));
                 });
 
-            Pointer<Void> _ptr;
+            final Pointer<Void> _ptr;
+            bool _uniffiDisposed = false;
 
             static int allocationSize($(&impl_name) _) => 8;
 
             Pointer<Void> uniffiClonePointer() {
+                if (_uniffiDisposed) {
+                    throw StateError($(quoted(format!("Cannot use a disposed {cls_name}"))));
+                }
                 return rustCall((status) => $ffi_object_clone_name(_ptr, status));
             }
 
             @override
             void dispose() {
+                if (_uniffiDisposed) {
+                    return;
+                }
+                // Mark closed before calling Rust, including reentrant disposal.
+                _uniffiDisposed = true;
                 $(&finalizer_field).detach(this);
                 rustCall((status) => $ffi_object_free_name(_ptr, status));
             }
