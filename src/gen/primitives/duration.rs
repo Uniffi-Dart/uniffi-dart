@@ -10,6 +10,12 @@ impl Renderable for DurationCodeType {
     fn render_type_helper(&self, _type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
         quote! {
             class FfiConverterDuration {
+                static void _checkNonNegative(Duration value) {
+                    if (value.isNegative) {
+                        throw ArgumentError.value(value, "value", "Duration must not be negative");
+                    }
+                }
+
                 static Duration lift( RustBuffer buf) {
                     return FfiConverterDuration.read(buf.asUint8List()).value;
                 }
@@ -28,10 +34,12 @@ impl Renderable for DurationCodeType {
                 }
 
                 static int allocationSize([Duration value = const Duration()]) {
+                    _checkNonNegative(value);
                     return 12;
                 }
 
                 static int write( Duration value, Uint8List buf) {
+                    _checkNonNegative(value);
                     final bytes = buf.buffer.asByteData(buf.offsetInBytes, 12);
                     bytes.setUint64(0, value.inSeconds);
                     final ms = (value.inMicroseconds - (value.inSeconds * 1000000)) * 1000;
