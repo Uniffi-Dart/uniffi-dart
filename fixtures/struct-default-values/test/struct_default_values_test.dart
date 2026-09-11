@@ -1,7 +1,25 @@
 import 'package:test/test.dart';
+
 import '../struct_default_values.dart';
 
 void main() {
+  test('UDL string defaults preserve literal interpolation syntax', () {
+    final value = UdlStringDefaults();
+    expect(value.identifier, r'$amount');
+    expect(value.braced, r'${amount}');
+  });
+
+  test('proc-macro string defaults roundtrip without interpolation', () {
+    final value = StringDefaults();
+    final echoed = echoStringDefaults(value: value);
+
+    for (final defaults in [value, echoed]) {
+      expect(defaults.identifier, r'$amount');
+      expect(defaults.braced, r'${amount}');
+      expect(defaults.escaped, r"'\$amount");
+    }
+  });
+
   group('StructDefaultValues', () {
     test('bookmark only nondefault set', () {
       const url = "https://mozilla.github.io/uniffi-rs";
