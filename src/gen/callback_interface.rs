@@ -395,36 +395,41 @@ pub fn generate_callback_functions(
                     outReturn.ref.free = uniffiForeignFutureFreePointer;
 
                     () async {
+                        var completed = false;
                         try {
                             final result = await obj.$method_name($(for arg in &arg_names => $arg,));
-                            final removedState = uniffiForeignFutureHandleMap.maybeRemove(handle);
-                            final effectiveState = removedState ?? state;
-                            if (effectiveState.cancelled) {
+                            if (state.cancelled || completed) {
                                 return;
                             }
-                            effectiveState.cancelled = true;
                             final resultStructPtr = calloc<$struct_tokens>();
                             try {
                                 $success_return
                                 resultStructPtr.ref.callStatus.code = CALL_SUCCESS;
+                                // Conversion can throw. Claim completion only once the
+                                // result/status is ready to transfer to Rust.
+                                completed = true;
+                                uniffiForeignFutureHandleMap.maybeRemove(handle);
                                 callback(uniffiCallbackData, resultStructPtr.ref);
                             } finally {
                                 calloc.free(resultStructPtr);
                             }
                         } catch (e) {
-                            final removedState = uniffiForeignFutureHandleMap.maybeRemove(handle);
-                            final effectiveState = removedState ?? state;
-                            if (effectiveState.cancelled) {
+                            if (state.cancelled || completed) {
                                 return;
                             }
-                            effectiveState.cancelled = true;
                             final resultStructPtr = calloc<$struct_tokens_alt>();
                             try {
                                 $async_error_handling
+                                // Conversion can throw. Claim completion only once the
+                                // result/status is ready to transfer to Rust.
+                                completed = true;
+                                uniffiForeignFutureHandleMap.maybeRemove(handle);
                                 callback(uniffiCallbackData, resultStructPtr.ref);
                             } finally {
                                 calloc.free(resultStructPtr);
                             }
+                        } finally {
+                            uniffiForeignFutureHandleMap.maybeRemove(handle);
                         }
                     }();
                 }
