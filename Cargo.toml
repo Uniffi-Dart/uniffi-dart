@@ -5,7 +5,7 @@ edition = "2021"
 license = "Apache-2 or MIT"
 homepage = "https://github.com/acterglobal/uniffi-dart"
 description = "Dart Frontend for UniFFI"
-rust-version = "1.91"
+rust-version = "1.88"
 
 [features]
 defaults = []
