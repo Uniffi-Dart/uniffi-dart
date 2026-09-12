@@ -292,81 +292,16 @@ impl DartCodeOracle {
         }
     }
 
-    /// Get the native Dart FFI type rendering based on `Type`.
+    /// Use UniFFI's wire representation for callback signatures as well as ordinary calls.
     pub fn native_type_label(native_ret_type: Option<&Type>) -> dart::Tokens {
-        if let Some(ret_type) = native_ret_type {
-            match ret_type {
-                Type::UInt8 => quote!(Uint8),
-                Type::UInt16 => quote!(Uint16),
-                Type::UInt32 => quote!(Uint32),
-                Type::UInt64 => quote!(Uint64),
-                Type::Int8 => quote!(Int8),
-                Type::Int16 => quote!(Int16),
-                Type::Int32 => quote!(Int32),
-                Type::Int64 => quote!(Int64),
-                Type::Float32 => quote!(Float),
-                Type::Float64 => quote!(Double),
-                Type::Boolean => quote!(Int8),
-                Type::Bytes => quote!(RustBuffer),
-                Type::String => quote!(RustBuffer),
-                Type::Timestamp => quote!(Int64),
-                Type::Duration => quote!(Int64),
-                Type::Optional { inner_type } => match **inner_type {
-                    Type::String => quote!(RustBuffer),
-                    _ => quote!(RustBuffer),
-                },
-                Type::Sequence { .. } => quote!(RustBuffer),
-                Type::Map { .. } => quote!(RustBuffer),
-                Type::Object { .. } => quote!(Pointer<Void>),
-                Type::Enum { .. } => quote!(Int32),
-                Type::Record { .. } => quote!(RustBuffer),
-                // A custom type is only a Dart-level alias; across the FFI it is
-                // represented by its builtin, so recurse rather than emitting the
-                // alias name (which is not a `NativeType`).
-                Type::Custom { builtin, .. } => Self::native_type_label(Some(builtin)),
-                _ => quote!(Pointer<Void>),
-            }
-        } else {
-            quote!(Void)
+        match native_ret_type {
+            Some(ty) => Self::ffi_native_type_label(Some(&FfiType::from(ty))),
+            None => quote!(Void),
         }
     }
 
-    /// Get the native Dart FFI type rendering based on `Type`.
     pub fn native_dart_type_label(native_ret_type: Option<&Type>) -> dart::Tokens {
-        if let Some(ret_type) = native_ret_type {
-            match ret_type {
-                Type::UInt8
-                | Type::UInt16
-                | Type::UInt32
-                | Type::UInt64
-                | Type::Int8
-                | Type::Int16
-                | Type::Int32
-                | Type::Int64 => quote!(int), // Adjust based on actual FFI size
-                Type::Float32 => quote!(double),
-                Type::Float64 => quote!(double),
-                Type::Boolean => quote!(int),
-                Type::Bytes => quote!(RustBuffer),
-                Type::String => quote!(RustBuffer),
-                Type::Timestamp => quote!(int),
-                Type::Duration => quote!(int),
-                Type::Optional { inner_type } => match **inner_type {
-                    Type::String => quote!(RustBuffer),
-                    _ => quote!(RustBuffer),
-                },
-                Type::Sequence { .. } => quote!(RustBuffer),
-                Type::Map { .. } => quote!(RustBuffer),
-                Type::Object { .. } => quote!(Pointer<Void>),
-                Type::Enum { .. } => quote!(int),
-                Type::Record { .. } => quote!(RustBuffer),
-                // See `native_type_label`: custom types are Dart-level aliases and
-                // cross the FFI as their builtin.
-                Type::Custom { builtin, .. } => Self::native_dart_type_label(Some(builtin)),
-                _ => quote!(dynamic),
-            }
-        } else {
-            quote!(void)
-        }
+        Self::ffi_dart_type_label(native_ret_type.map(FfiType::from).as_ref())
     }
 
     // Method to get the appropriate callback parameter type
@@ -457,11 +392,14 @@ impl DartCodeOracle {
                 }
             }
             _ => {
-                // For other return types
                 let lowered = ret_type.as_codetype().ffi_converter_name();
+                let destination = match FfiType::from(ret_type) {
+                    FfiType::RustBuffer(_) => quote!(outReturn.ref),
+                    _ => quote!(outReturn.value),
+                };
                 quote!(
                     final result = obj.$method_name($(for arg in &args => $arg,));
-                    outReturn.ref = $lowered.lower(result);
+                    $destination = $lowered.lower(result);
                 )
             }
         }
@@ -469,25 +407,8 @@ impl DartCodeOracle {
 
     // Method to get the appropriate return type for callback functions
     pub fn callback_out_return_type(ret_type: Option<&Type>) -> dart::Tokens {
-        if let Some(ret) = ret_type {
-            match ret {
-                Type::UInt8 => quote!(Pointer<Uint8>),
-                Type::UInt16 => quote!(Pointer<Uint16>),
-                Type::UInt32 => quote!(Pointer<Uint32>),
-                Type::UInt64 => quote!(Pointer<Uint64>),
-                Type::Int8 => quote!(Pointer<Int8>),
-                Type::Int16 => quote!(Pointer<Int16>),
-                Type::Int32 => quote!(Pointer<Int32>),
-                Type::Int64 => quote!(Pointer<Int64>),
-                Type::Float32 => quote!(Pointer<Float>),
-                Type::Float64 => quote!(Pointer<Double>),
-                Type::Boolean => quote!(Pointer<Int8>),
-                Type::Object { .. } => quote!(Pointer<Pointer<Void>>),
-                _ => quote!(Pointer<RustBuffer>),
-            }
-        } else {
-            quote!(Pointer<Void>)
-        }
+        let native_type = Self::native_type_label(ret_type);
+        quote!(Pointer<$native_type>)
     }
 
     // Method to handle void return values in callbacks
@@ -507,9 +428,6 @@ impl DartCodeOracle {
         // Use index-based variable names to avoid conflicts
         if let Type::Boolean = arg_type {
             quote!(final bool_arg$(arg_idx) = $arg_name == 1;)
-        } else if let Type::Enum { .. } = arg_type {
-            let converter = arg_type.as_codetype().ffi_converter_name();
-            quote!(final arg$(arg_idx) = $converter.read(createUint8ListFromInt($arg_name)).value;)
         } else if let Type::Bytes = arg_type {
             quote!(final arg$(arg_idx) = FfiConverterUint8List.lift($arg_name);)
         } else if let Type::String = arg_type {
