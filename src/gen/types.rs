@@ -322,13 +322,13 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                 if (status.ref.code == CALL_SUCCESS) {
                 return;
                 } else if (status.ref.code == CALL_ERROR) {
-                throw errorHandler.lift(status.ref.errorBuf);
+                    throw uniffiLiftOwnedRustBuffer(status.ref.errorBuf, errorHandler.lift);
                 } else if (status.ref.code == CALL_UNEXPECTED_ERROR) {
-                if (status.ref.errorBuf.len > 0) {
-                    throw UniffiInternalError.panicked(FfiConverterString.lift(status.ref.errorBuf));
-                } else {
-                    throw UniffiInternalError.panicked("Rust panic");
-                }
+                    throw uniffiLiftOwnedRustBuffer(status.ref.errorBuf, (buf) {
+                        return UniffiInternalError.panicked(
+                            buf.len > 0 ? FfiConverterString.lift(buf) : "Rust panic",
+                        );
+                    });
                 } else {
                 throw UniffiInternalError.panicked("Unexpected RustCallStatus code: ${status.ref.code}");
                 }
@@ -351,16 +351,31 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                 try {
                     final rawResult = ffiCall(status);
                     checkCallStatus(errorHandler ?? NullRustCallStatusErrorHandler(), status);
-                    return lifter(rawResult);
+                    return uniffiLiftOwnedRustBuffer(rawResult, lifter);
                 } finally {
                     calloc.free(status);
+                }
+            }
+
+            // Converters borrow their input; FFI boundaries own and release RustBuffers.
+            // Scalar and handle results retain their existing converter ownership.
+            T uniffiLiftOwnedRustBuffer<T, F>(F value, T Function(F) lift) {
+                try {
+                    return lift(value);
+                } finally {
+                    uniffiFreeRustBuffer(value);
+                }
+            }
+
+            void uniffiFreeRustBuffer(Object? value) {
+                if (value is RustBuffer) {
+                    value.free();
                 }
             }
 
             class NullRustCallStatusErrorHandler extends UniffiRustCallStatusErrorHandler {
                 @override
                 Exception lift(RustBuffer errorBuf) {
-                errorBuf.free();
                 return UniffiInternalError.panicked("Unexpected CALL_ERROR");
                 }
             }
@@ -557,7 +572,7 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                             errorHandler ?? NullRustCallStatusErrorHandler(),
                             status,
                         );
-                        return liftFunc(result);
+                        return uniffiLiftOwnedRustBuffer(result, liftFunc);
                     } finally {
                         calloc.free(status);
                     }
