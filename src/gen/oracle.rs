@@ -193,6 +193,53 @@ impl DartCodeOracle {
     //     }
     // }
 
+    /// Lower arguments in a transaction, then suspend tracking while Rust owns them.
+    pub fn scoped_ffi_call(
+        ffi_name: &str,
+        arguments: &[&Argument],
+        receiver: bool,
+        status: Option<dart::Tokens>,
+        overrides: Option<&[dart::Tokens]>,
+    ) -> dart::Tokens {
+        let mut names: std::collections::HashSet<String> =
+            arguments.iter().map(|arg| Self::var_name(arg.name())).collect();
+        // The status variable belongs to the enclosing rustCall closure.
+        names.insert("status".into());
+        let mut unique = |base: &str| {
+            let mut name = base.to_owned();
+            let mut suffix = 0;
+            while !names.insert(name.clone()) {
+                suffix += 1;
+                name = format!("{base}{suffix}");
+            }
+            name
+        };
+        let scope = unique("uniffiArguments");
+        let mut lowered = Vec::new();
+        if receiver {
+            lowered.push(quote!(uniffiClonePointer()));
+        }
+        if let Some(expressions) = overrides {
+            lowered.extend_from_slice(expressions);
+        } else {
+            lowered.extend(arguments.iter().map(|arg| Self::lower_arg_with_callback_handling(arg)));
+        }
+        let prepared: Vec<_> = lowered
+            .into_iter()
+            .enumerate()
+            .map(|(i, expression)| (unique(&format!("uniffiArg{i}")), expression))
+            .collect();
+        quote! {
+            uniffiWithArguments(($(&scope)) {
+                $(for (name, expression) in &prepared => final $name = $expression;)
+                return $(&scope).call(() => $ffi_name(
+                    $(for (name, _) in &prepared => $name,)
+                    $(if let Some(status) = &status => $status)
+                ));
+            })
+        }
+    }
+
     pub fn type_lower_fn(ty: &Type, inner: dart::Tokens) -> dart::Tokens {
         match ty {
             Type::Int8

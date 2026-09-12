@@ -36,6 +36,14 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
         quote!(null)
     };
 
+    let call = DartCodeOracle::scoped_ffi_call(
+        func.ffi_func().name(),
+        &func.arguments(),
+        false,
+        if func.is_async() { None } else { Some(quote!(status)) },
+        None,
+    );
+
     // Use centralized callback-aware argument lowering
     if func.is_async() {
         // For async methods returning objects, we need to convert the int pointer to Pointer<Void>
@@ -53,9 +61,7 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
         quote!(
             Future<$ret> $(DartCodeOracle::fn_name(func.name()))($args) {
                 return uniffiRustCallAsync(
-                  () => $(func.ffi_func().name())(
-                    $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
-                  ),
+                  () => $(&call),
                   $(DartCodeOracle::async_poll(func, type_helper.get_ci())),
                   $(DartCodeOracle::async_complete(func, type_helper.get_ci())),
                   $(DartCodeOracle::async_free(func, type_helper.get_ci())),
@@ -68,9 +74,7 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
         quote!(
             $ret $(DartCodeOracle::fn_name(func.name()))($args) {
                 return rustCall((status) {
-                    $(func.ffi_func().name())(
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
-                    );
+                    $(&call);
                 }, $error_handler);
             }
         )
@@ -78,9 +82,7 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
         quote!(
             $ret $(DartCodeOracle::fn_name(func.name()))($args) {
                 return rustCallWithLifter(
-                    (status) => $(func.ffi_func().name())(
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
-                    ),
+                    (status) => $(&call),
                     $lifter,
                     $error_handler
                 );

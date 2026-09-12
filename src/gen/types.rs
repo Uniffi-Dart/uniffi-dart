@@ -369,6 +369,72 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                 Exception lift(RustBuffer errorBuf);
             }
 
+            // Lowering is synchronous and isolate-local. Nested calls get a separate scope;
+            // callbacks entered by Rust run with tracking suspended.
+            T uniffiWithArguments<T>(T Function(UniffiArgumentScope) prepare) {
+                final previous = UniffiArgumentScope.current;
+                final scope = UniffiArgumentScope();
+                UniffiArgumentScope.current = scope;
+                try {
+                    return prepare(scope);
+                } finally {
+                    UniffiArgumentScope.current = null;
+                    try {
+                        scope.close();
+                    } finally {
+                        UniffiArgumentScope.current = previous;
+                    }
+                }
+            }
+
+            class UniffiArgumentScope {
+                static UniffiArgumentScope? current;
+                // Reserve cleanup storage before acquiring any arguments. Rollback must
+                // still work if a later native allocation keeps failing.
+                final _status = calloc<RustCallStatus>();
+                final _owned = <void Function(Pointer<RustCallStatus>)>[];
+
+                void own(void Function(Pointer<RustCallStatus>) release) {
+                    _owned.add(release);
+                }
+
+                T call<T>(T Function() invoke) {
+                    final previous = current;
+                    current = null;
+                    try {
+                        final result = invoke();
+                        // A returned error status also means Rust consumed the arguments.
+                        _owned.clear();
+                        return result;
+                    } finally {
+                        current = previous;
+                    }
+                }
+
+                void close() {
+                    try {
+                        _releaseRemaining();
+                    } finally {
+                        calloc.free(_status);
+                    }
+                }
+
+                void _releaseRemaining() {
+                    while (_owned.isNotEmpty) {
+                        final release = _owned.removeLast();
+                        try {
+                            _status.ref.code = CALL_SUCCESS;
+                            release(_status);
+                            checkCallStatus(NullRustCallStatusErrorHandler(), _status);
+                        } catch (_) {
+                            // Finish releasing other arguments even if a destructor fails.
+                            _releaseRemaining();
+                            rethrow;
+                        }
+                    }
+                }
+            }
+
             final class RustBuffer extends Struct {
                 @Uint64()
                 external int capacity;
@@ -379,11 +445,15 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                 external Pointer<Uint8> data;
 
                 static RustBuffer alloc(int size) {
-                    return rustCall((status) => $(ci.ffi_rustbuffer_alloc().name())(size, status));
+                    final buffer = rustCall((status) => $(ci.ffi_rustbuffer_alloc().name())(size, status));
+                    UniffiArgumentScope.current?.own((status) => $(ci.ffi_rustbuffer_free().name())(buffer, status));
+                    return buffer;
                 }
 
                 static RustBuffer fromBytes(ForeignBytes bytes) {
-                    return rustCall((status) => $(ci.ffi_rustbuffer_from_bytes().name())(bytes, status));
+                    final buffer = rustCall((status) => $(ci.ffi_rustbuffer_from_bytes().name())(bytes, status));
+                    UniffiArgumentScope.current?.own((status) => $(ci.ffi_rustbuffer_free().name())(buffer, status));
+                    return buffer;
                 }
 
                 // static RustBuffer from(Pointer<Uint8> bytes, int len) {
