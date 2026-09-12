@@ -1,6 +1,6 @@
 use genco::prelude::*;
 use heck::ToLowerCamelCase;
-use uniffi_bindgen::interface::{AsType, Enum, Field, Type};
+use uniffi_bindgen::interface::{AsType, Enum, Field};
 use uniffi_bindgen::pipeline::general::nodes::Literal;
 
 use super::oracle::{AsCodeType, DartCodeOracle};
