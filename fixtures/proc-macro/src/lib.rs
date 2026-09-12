@@ -235,6 +235,16 @@ pub fn sum_borrowed_bytes_checked(data: &[u8]) -> Result<u64, BasicError> {
     Ok(data.iter().map(|&b| u64::from(b)).sum())
 }
 
+// Borrowed bytes FIRST, then an integer whose *Dart* lowering range-checks:
+// `FfiConverterUInt32.lower` throws `ArgumentError` for a negative value. Calling
+// this from Dart with `scale: -1` therefore fails **after** `data` has been copied
+// into the arena and **before** Rust is entered — the "failure while lowering a
+// later argument" case, where the earlier copy must still be freed by `using`.
+#[uniffi::export]
+pub fn sum_borrowed_bytes_scaled(data: &[u8], scale: u32) -> u64 {
+    data.iter().map(|&b| u64::from(b)).sum::<u64>() * u64::from(scale)
+}
+
 // Void return with a borrowed `&[u8]`: exercises the `void` call-site branch
 // (`rustCall((status){...})`) wrapped in the arena — distinct from the non-void
 // `rustCallWithLifter` branch the functions above hit.
