@@ -1,0 +1,22 @@
+[package]
+name = "conversion_temporaries"
+version = "0.1.0"
+edition = "2021"
+publish = false
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[lib]
+name = "conversion_temporaries"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+uniffi = { workspace = true }
+
+[build-dependencies]
+uniffi-dart = { path = "../../", features = ["build"] }
+
+[dev-dependencies]
+uniffi-dart = { path = "../../", features = ["bindgen-tests"] }
+uniffi = { workspace = true, features = ["bindgen-tests"] }
+anyhow = "1"

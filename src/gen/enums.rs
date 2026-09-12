@@ -147,15 +147,6 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
         fn field_ffi_converter_name(field: &Field) -> String {
             field.as_type().as_codetype().ffi_converter_name().replace("Error", "Exception")
         }
-        fn is_flat_enum(field: &Field, type_helper: &dyn TypeHelperRenderer) -> bool {
-            if let Type::Enum { name, .. } = &field.as_type() {
-                if let Some(enum_def) = type_helper.get_enum(name) {
-                    return enum_def.is_flat();
-                }
-            }
-            false
-        }
-
         // A data-carrying variant's Dart class is named `{Variant}{Enum}`, which
         // can collide with a real top-level type of the same name (e.g. enum
         // `Condition` variant `Field` -> `FieldCondition`, clashing with a record
@@ -226,48 +217,23 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                 quote!($( for p in constructor_params => $p, ))
             };
 
-            // Pre-process field reading code
+            // Nested fields use their buffer readers/writers directly, including flat enums.
             let field_read_code: Vec<dart::Tokens> = variant_obj.fields().iter().enumerate().map(|(i, field)| {
-                if is_flat_enum(field, type_helper) {
-                    // Handle flat enums specially - they serialize as int32 (4 bytes)
-                    quote!(
-                        final $(field_name(field, i))_int = buf.buffer.asByteData(new_offset).getInt32(0);
-                        final $(field_name(field, i)) = $(field_ffi_converter_name(field)).lift(toRustBuffer(createUint8ListFromInt($(field_name(field, i))_int)));
-                        new_offset += 4;
-                    )
-                } else {
-                    quote!(
-                        final $(field_name(field, i))_lifted = $(field_ffi_converter_name(field)).read(Uint8List.view(buf.buffer, new_offset));
-                        final $(field_name(field, i)) = $(field_name(field, i))_lifted.value;
-                        new_offset += $(field_name(field, i))_lifted.bytesRead;
-                    )
-                }
+                quote!(
+                    final $(field_name(field, i))_lifted = $(field_ffi_converter_name(field)).read(Uint8List.view(buf.buffer, new_offset));
+                    final $(field_name(field, i)) = $(field_name(field, i))_lifted.value;
+                    new_offset += $(field_name(field, i))_lifted.bytesRead;
+                )
             }).collect();
 
-            // Pre-process allocation size calculation
             let allocation_parts: Vec<dart::Tokens> = variant_obj.fields().iter().enumerate().map(|(i, field)| {
-                if is_flat_enum(field, type_helper) {
-                    quote!(4 + ) // Flat enums are 4 bytes (int32)
-                } else {
-                    quote!($(field_ffi_converter_name(field)).allocationSize($(field_name(field, i))) + )
-                }
+                quote!($(field_ffi_converter_name(field)).allocationSize($(field_name(field, i))) + )
             }).collect();
 
-            // Pre-process field write code
             let field_write_code: Vec<dart::Tokens> = variant_obj.fields().iter().enumerate().map(|(i, field)| {
-                if is_flat_enum(field, type_helper) {
-                    // Handle flat enums specially - lower to RustBuffer and extract int32
-                    quote!(
-                        final $(field_name(field, i))_buffer = $(field_ffi_converter_name(field)).lower($(field_name(field, i)));
-                        final $(field_name(field, i))_int = $(field_name(field, i))_buffer.asUint8List().buffer.asByteData().getInt32(0);
-                        buf.buffer.asByteData(new_offset).setInt32(0, $(field_name(field, i))_int);
-                        new_offset += 4;
-                    )
-                } else {
-                    quote!(
-                        new_offset += $(field_ffi_converter_name(field)).write($(field_name(field, i)), Uint8List.view(buf.buffer, new_offset));
-                    )
-                }
+                quote!(
+                    new_offset += $(field_ffi_converter_name(field)).write($(field_name(field, i)), Uint8List.view(buf.buffer, new_offset));
+                )
             }).collect();
 
             // Generate simple toString() method for error enum variants
