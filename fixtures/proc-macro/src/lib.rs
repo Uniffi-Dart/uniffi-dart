@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+mod call_status;
 mod callback_interface;
 pub use callback_interface::{OtherCallbackInterface, TestCallbackInterface};
 

@@ -433,22 +433,23 @@ pub fn generate_callback_functions(
                     Pointer.fromFunction<$ffi_method_type>($callback_method_name);
             }
         } else {
+            let call_status = &DartCodeOracle::call_status_name(&m.arguments());
             // Handle return value using the oracle
             let call_dart_method = if let Some(ret) = m.return_type() {
-                DartCodeOracle::callback_return_handling(ret, method_name, arg_names)
+                DartCodeOracle::callback_return_handling(ret, method_name, arg_names, call_status)
             } else {
                 // Handle void return types
-                DartCodeOracle::callback_void_handling(method_name, arg_names)
+                DartCodeOracle::callback_void_handling(method_name, arg_names, call_status)
             };
 
             // Get the appropriate out return type
             let out_return_type = DartCodeOracle::callback_out_return_type(m.return_type());
             let sync_error_handling =
-                callback_error_handling(m.throws_type(), type_helper, quote!(status));
+                callback_error_handling(m.throws_type(), type_helper, quote!($call_status));
 
             quote! {
                 void $callback_method_name(int uniffiHandle, $(for param in &param_types => $param,) $out_return_type outReturn, Pointer<RustCallStatus> callStatus) {
-                    final status = callStatus.ref;
+                    final $call_status = callStatus.ref;
                     try {
                         final obj = FfiConverterCallbackInterface$cls_name._handleMap.get(uniffiHandle);
                         $(arg_lifts)

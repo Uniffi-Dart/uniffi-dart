@@ -59,6 +59,18 @@ impl DartCodeOracle {
         Self::sanitize_identifier(&nm.to_lower_camel_case())
     }
 
+    /// Keep the call-status pointer distinct from every lowered user argument.
+    pub fn call_status_name(arguments: &[&Argument]) -> String {
+        let names: Vec<_> = arguments.iter().map(|arg| Self::var_name(arg.name())).collect();
+        let mut name = "status".to_owned();
+        let mut suffix = 0;
+        while names.contains(&name) {
+            suffix += 1;
+            name = format!("status{suffix}");
+        }
+        name
+    }
+
     /// Get the idiomatic Dart rendering of an individual enum variant.
     pub fn enum_variant_name(nm: &str) -> String {
         Self::sanitize_identifier(&nm.to_lower_camel_case())
@@ -380,6 +392,7 @@ impl DartCodeOracle {
         ret_type: &Type,
         method_name: &str,
         args: Vec<dart::Tokens>,
+        call_status: &str,
     ) -> dart::Tokens {
         match ret_type {
             Type::Boolean => {
@@ -430,7 +443,7 @@ impl DartCodeOracle {
                 quote!(
                     final result = obj.$method_name($(for arg in &args => $arg,));
                     outReturn.ref = FfiConverterString.lower(result);
-                    status.code = CALL_SUCCESS;
+                    $call_status.code = CALL_SUCCESS;
                 )
             }
             Type::Object { .. } => {
@@ -491,10 +504,14 @@ impl DartCodeOracle {
     }
 
     // Method to handle void return values in callbacks
-    pub fn callback_void_handling(method_name: &str, args: Vec<dart::Tokens>) -> dart::Tokens {
+    pub fn callback_void_handling(
+        method_name: &str,
+        args: Vec<dart::Tokens>,
+        call_status: &str,
+    ) -> dart::Tokens {
         quote!(
             obj.$method_name($(for arg in &args => $arg,));
-            status.code = CALL_SUCCESS;
+            $call_status.code = CALL_SUCCESS;
         )
     }
 
