@@ -125,15 +125,9 @@ macro_rules! impl_renderable_for_compound {
 
                                 final length = $cl_name.allocationSize(value);
 
-                                final Pointer<Uint8> frameData = calloc<Uint8>(length); // Allocate a pointer large enough.
-                                final buf = frameData.asTypedList(length); // Create a list that uses our pointer to copy in the data.
-
+                                final buf = Uint8List(length);
                                 $cl_name.write(value, buf);
-
-                                final bytes = calloc<ForeignBytes>();
-                                bytes.ref.len = length;
-                                bytes.ref.data = frameData;
-                                return RustBuffer.fromBytes(bytes.ref);
+                                return toRustBuffer(buf);
                             }
 
                             static int write( $type_label value, Uint8List buf) {
