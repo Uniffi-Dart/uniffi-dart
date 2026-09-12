@@ -67,6 +67,7 @@ members = [
     "fixtures/callbacks",
     "fixtures/benchmarks",
     "fixtures/custom_types",
+    "fixtures/conversion-temporaries",
     "fixtures/docstring-proc-macro",
     "fixtures/duration_type_test",
     "fixtures/type-limits",
