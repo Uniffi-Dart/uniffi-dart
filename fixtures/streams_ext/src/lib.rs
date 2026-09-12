@@ -1,9 +1,9 @@
 use std::pin::Pin;
 use std::time::Duration;
 
+use async_io::Timer;
 use async_stream::stream;
 use futures::stream::{self, Stream, StreamExt};
-use smol::Timer;
 
 // // Define custom error enums
 // #[derive(Debug, thiserror::Error)]
@@ -122,8 +122,8 @@ pub fn combined_streams() -> impl Stream<Item = String> + Send {
 
 #[cfg(test)]
 mod tests {
+    use async_io::block_on;
     use futures::stream::StreamExt;
-    use smol::block_on;
 
     use super::*;
 

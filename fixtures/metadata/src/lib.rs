@@ -27,6 +27,7 @@ impl MetadataObject {
     pub fn set_version(&self, version: u32) {
         // In a real implementation, this would be mutable
         // For testing purposes, we'll just validate the call works
+        let _ = version;
     }
 
     pub fn get_version(&self) -> u32 {

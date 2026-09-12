@@ -23,8 +23,10 @@ jobs:
       - name: Use Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Run flake checks
-        run: nix flake check -L
+      - name: Check repository formatting
+        run: |
+          nix flake check -L
+          printf '%s\n' 'This flake check validates repository formatting. Runtime tests run in the Testing workflow.' >> "$GITHUB_STEP_SUMMARY"
 
   dev-shell:
     name: Dev shell (${{ matrix.shell }})
@@ -48,7 +50,7 @@ jobs:
 
       - name: Verify shell tools
         run: |
-          nix develop .#${{ matrix.shell }} -c bash -lc '
+          nix develop .#${{ matrix.shell }} -c bash -euo pipefail -c '
             rustc --version
             cargo --version
             cargo nextest --version

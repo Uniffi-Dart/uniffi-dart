@@ -12,6 +12,7 @@ jobs:
     name: Test Suite
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         rust:
           - stable
@@ -36,7 +37,6 @@ jobs:
         uses: dart-lang/setup-dart@v1
 
       - name: Run cargo nextest
-        continue-on-error: ${{ matrix.rust == 'nightly' }}
         # --all-features so the `binary`-gated CLI (src/bin.rs) is compiled too.
         run: cargo nextest run --all --all-features
 
@@ -44,6 +44,7 @@ jobs:
     name: Lints
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         rust:
           - stable
@@ -63,11 +64,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
           
       - name: Format
-        continue-on-error: ${{ matrix.rust == 'nightly' }}
         run: cargo fmt --all -- --check
 
+      - name: Test CI result reporting
+        run: python3 -m unittest discover -s .github/scripts -p '*_test.py'
+
       - name: Clippy
-        continue-on-error: ${{ matrix.rust == 'nightly' }}
-        # --all-features --all-targets so the `binary`-gated CLI (src/bin.rs) and
-        # test targets are linted, not just the default library build.
-        run: cargo clippy --all-features --all-targets -- -D warnings
+        # Include every fixture and macro crate as well as the generator's CLI.
+        # UniFFI 0.31 scaffolding requires const MetadataBuffers to build its static metadata.
+        run: cargo clippy --workspace --all-features --all-targets --keep-going -- -D warnings -A clippy::large_const_arrays

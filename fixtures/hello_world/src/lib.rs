@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use uniffi;
-
 #[derive(uniffi::Record, Clone)]
 pub struct WorldState {
     inhabitants: u8,
@@ -69,7 +67,7 @@ pub fn new_world_with_name(name: String) -> Arc<World> {
 
 #[uniffi::export]
 pub fn hello_world() -> String {
-    format!("hello world")
+    "hello world".to_string()
 }
 
 #[uniffi::export]

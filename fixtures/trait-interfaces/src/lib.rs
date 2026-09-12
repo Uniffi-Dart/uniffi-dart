@@ -81,7 +81,7 @@ pub struct Registry;
 impl Registry {
     #[uniffi::constructor]
     pub fn new() -> Arc<Self> {
-        Arc::new(Self::default())
+        Arc::new(Self)
     }
 
     pub fn make_friendly(&self, phrase: String) -> Arc<dyn Greeter> {

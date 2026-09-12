@@ -1,3 +1,7 @@
+// Object map keys deliberately use stable pointer identity for Hash and Eq.
+// Allow this for both the fixture and its generated UniFFI scaffolding.
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
@@ -44,6 +48,7 @@ fn set_contains(set: Arc<MyHashSet>, value: String) -> bool {
 fn dummy(_arg: Option<i8>) {}
 
 // MyHashSet implementation
+#[derive(Default)]
 pub struct MyHashSet {
     inner: Mutex<HashSet<String>>,
 }

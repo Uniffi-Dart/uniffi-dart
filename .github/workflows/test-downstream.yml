@@ -4,11 +4,22 @@ on:
       - "main"
       - "release/**"
   pull_request:
+  workflow_dispatch:
+    inputs:
+      bdk_electrum_url:
+        description: Bitcoin testnet Electrum URL (tcp:// or ssl://)
+        required: true
+        type: string
+      bdk_esplora_url:
+        description: Bitcoin testnet Esplora API URL
+        required: true
+        type: string
 
 name: Test Downstream
 
 jobs:
   test-payjoin:
+    if: github.event_name != 'workflow_dispatch'
     name: Test rust-payjoin Bindings
     runs-on: ubuntu-latest
     steps:
@@ -48,7 +59,18 @@ jobs:
   test-bdk:
     name: Test bdk-dart Bindings
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BDK_DART_RUN_INTEGRATION: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+      BDK_DART_ELECTRUM_URL: ${{ inputs.bdk_electrum_url }}
+      BDK_DART_ESPLORA_URL: ${{ inputs.bdk_esplora_url }}
     steps:
+      - name: Validate integration configuration
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          test -n "${BDK_DART_ELECTRUM_URL//[[:space:]]/}"
+          test -n "${BDK_DART_ESPLORA_URL//[[:space:]]/}"
+
       - name: Checkout sources
         uses: actions/checkout@v4
         with:
@@ -82,5 +104,20 @@ jobs:
       - name: Refresh lockfile for patched generator
         run: cargo update --manifest-path bdk-dart/native/Cargo.toml -p uniffi-dart
 
-      - name: Generate dart bindings and run tests
-        run: cd bdk-dart && bash scripts/generate_bindings.sh && dart test
+      - name: Generate Dart bindings
+        working-directory: bdk-dart
+        run: bash scripts/generate_bindings.sh
+
+      - name: Run BDK tests
+        id: bdk_tests
+        working-directory: bdk-dart
+        run: dart test --file-reporter=json:../bdk-test-results.jsonl
+
+      - name: Report BDK test coverage
+        if: always() && (steps.bdk_tests.outcome == 'success' || steps.bdk_tests.outcome == 'failure')
+        run: |
+          args=()
+          if [[ "$BDK_DART_RUN_INTEGRATION" == '1' ]]; then
+            args+=(--require-no-skips)
+          fi
+          python3 main/.github/scripts/report-dart-tests.py bdk-test-results.jsonl "${args[@]}"
