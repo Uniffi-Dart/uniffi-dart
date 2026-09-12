@@ -187,10 +187,9 @@ void main() {
       );
 
       // Smoke test only: many calls confirm the emitted lower+free code compiles
-      // and does not crash / double-free over repeated use. NOTE: this does NOT
-      // detect the native-memory leak this fix addresses — a leak does not fail a
-      // functional test (memory grows, assertions still pass). Catching the leak
-      // itself needs an RSS/sanitizer check (tracked as a follow-up).
+      // and does not crash / double-free over repeated use. It does NOT detect a
+      // leak — a leak does not fail a functional test.
+      // borrowed_bytes_allocation_test.dart checks that by tracking allocations.
       var acc = 0;
       final payload = Uint8List.fromList(List<int>.generate(64, (i) => i & 0xff));
       for (var i = 0; i < 50000; i++) {
