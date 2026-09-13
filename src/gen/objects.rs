@@ -2,8 +2,9 @@ use std::fmt::Debug;
 
 use genco::prelude::*;
 use heck::ToLowerCamelCase;
-use uniffi_bindgen::interface::{AsType, Method, Object, ObjectImpl, UniffiTrait};
-use uniffi_bindgen::pipeline::general::nodes::Literal;
+use uniffi_bindgen::interface::{
+    AsType, Literal, Method, Object, ObjectImpl, TraitKind, UniffiTrait,
+};
 
 use super::defaults::render_argument_param;
 use super::stream::generate_stream;
@@ -46,10 +47,17 @@ impl CodeType for ObjectCodeType {
             // that a Rust method named `read`/`write`/`lower` cannot collide with the
             // converter's statics (Dart rejects a static and an instance member sharing
             // a name). Matches how records, enums and callback interfaces are emitted.
-            ObjectImpl::Struct | ObjectImpl::Trait => {
+            ObjectImpl::Struct => format!("FfiConverter{}", self.canonical_name()),
+            // Foreign-implementable traits (with_foreign / callback_interface) are
+            // lowered through a callback-interface FfiConverter. Mirrors
+            // uniffi's `ObjectImpl::has_callback_interface()` (Both | ForeignOnly).
+            ObjectImpl::Trait(TraitKind::Both | TraitKind::ForeignOnly) => {
+                format!("FfiConverterCallbackInterface{}", self.id)
+            }
+            // A pure Rust-only trait object uses its own sibling FfiConverter class.
+            ObjectImpl::Trait(TraitKind::RustOnly) => {
                 format!("FfiConverter{}", self.canonical_name())
             }
-            ObjectImpl::CallbackTrait => format!("FfiConverterCallbackInterface{}", self.id),
         }
     }
 }
@@ -155,6 +163,7 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
         let ffi_call_args = quote!($(for arg in constructor.arguments() =>
             $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
         );
+        let has_borrowed = DartCodeOracle::any_borrowed_bytes(&constructor.arguments());
 
         // Ensure argument types are included
         for arg in constructor.arguments() {
@@ -164,27 +173,31 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
         if constructor.is_async() {
             async_constructor_factories.push(quote! {
                 static Future<$cls_name> $(DartCodeOracle::fn_name(constructor_name))($dart_params) {
-                    return uniffiRustCallAsync(
-                      () => $ffi_func_name(
-                        $ffi_call_args
-                      ),
-                      $(DartCodeOracle::async_poll(constructor, type_helper.get_ci())),
-                      $(DartCodeOracle::async_complete(constructor, type_helper.get_ci())),
-                      $(DartCodeOracle::async_free(constructor, type_helper.get_ci())),
-                      (int handle) => $cls_name._(Pointer<Void>.fromAddress(handle)),
-                      $error_handler,
-                    );
+                    $(DartCodeOracle::wrap_ffi_call_stmt(has_borrowed, true, quote!(
+                        uniffiRustCallAsync(
+                          () => $ffi_func_name(
+                            $ffi_call_args
+                          ),
+                          $(DartCodeOracle::async_poll(constructor, type_helper.get_ci())),
+                          $(DartCodeOracle::async_complete(constructor, type_helper.get_ci())),
+                          $(DartCodeOracle::async_free(constructor, type_helper.get_ci())),
+                          (int handle) => $cls_name._(Pointer<Void>.fromAddress(handle)),
+                          $error_handler,
+                        )
+                    )))
                 }
             });
         } else {
             constructor_definitions.push(quote! {
                 // Public constructor
-                $dart_constructor_decl($dart_params) : _ptr = rustCall((status) =>
-                    $ffi_func_name(
-                        $ffi_call_args status
-                    ),
-                    $error_handler
-                ) {
+                $dart_constructor_decl($dart_params) : _ptr = $(DartCodeOracle::wrap_ffi_call_expr(has_borrowed, quote!(
+                    rustCall((status) =>
+                        $ffi_func_name(
+                            $ffi_call_args status
+                        ),
+                        $error_handler
+                    )
+                ))) {
                      _$finalizer_cls_name.attach(this, _ptr, detach: this);
                 }
             });
@@ -401,6 +414,8 @@ fn generate_callback_trait_rust_method(
         quote!(null)
     };
 
+    let has_borrowed = DartCodeOracle::any_borrowed_bytes(&method.arguments());
+
     if method.is_async() {
         let async_lifter = if let Some(ret_type) = method.return_type() {
             match ret_type {
@@ -416,45 +431,51 @@ fn generate_callback_trait_rust_method(
         quote! {
             @override
             Future<$ret> $method_name($(for a in &dart_args => $a,)) {
-                return uniffiRustCallAsync(
-                    () => $(method.ffi_func().name())(
-                        uniffiClonePointer(),
-                        $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
-                    ),
-                    $(DartCodeOracle::async_poll(method, type_helper.get_ci())),
-                    $(DartCodeOracle::async_complete(method, type_helper.get_ci())),
-                    $(DartCodeOracle::async_free(method, type_helper.get_ci())),
-                    $async_lifter,
-                    $error_handler,
-                );
+                $(DartCodeOracle::wrap_ffi_call_stmt(has_borrowed, true, quote!(
+                    uniffiRustCallAsync(
+                        () => $(method.ffi_func().name())(
+                            uniffiClonePointer(),
+                            $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
+                        ),
+                        $(DartCodeOracle::async_poll(method, type_helper.get_ci())),
+                        $(DartCodeOracle::async_complete(method, type_helper.get_ci())),
+                        $(DartCodeOracle::async_free(method, type_helper.get_ci())),
+                        $async_lifter,
+                        $error_handler,
+                    )
+                )))
             }
         }
     } else if ret == quote!(void) {
         quote! {
             @override
             $ret $method_name($(for a in &dart_args => $a,)) {
-                return rustCall((status) {
-                    $(method.ffi_func().name())(
-                        uniffiClonePointer(),
-                        $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
-                        status
-                    );
-                }, $error_handler);
+                $(DartCodeOracle::wrap_ffi_call_stmt(has_borrowed, false, quote!(
+                    rustCall((status) {
+                        $(method.ffi_func().name())(
+                            uniffiClonePointer(),
+                            $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
+                            status
+                        );
+                    }, $error_handler)
+                )))
             }
         }
     } else {
         quote! {
             @override
             $ret $method_name($(for a in &dart_args => $a,)) {
-                return rustCallWithLifter(
-                    (status) => $(method.ffi_func().name())(
-                        uniffiClonePointer(),
-                        $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
-                        status
-                    ),
-                    $lifter,
-                    $error_handler
-                );
+                $(DartCodeOracle::wrap_ffi_call_stmt(has_borrowed, false, quote!(
+                    rustCallWithLifter(
+                        (status) => $(method.ffi_func().name())(
+                            uniffiClonePointer(),
+                            $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
+                            status
+                        ),
+                        $lifter,
+                        $error_handler
+                    )
+                )))
             }
         }
     }
@@ -490,6 +511,8 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
         quote!(null)
     };
 
+    let has_borrowed = DartCodeOracle::any_borrowed_bytes(&func.arguments());
+
     if func.is_async() {
         // For async methods returning objects, we need to convert the int pointer to Pointer<Void>
         let async_lifter = if let Some(ret_type) = func.return_type() {
@@ -505,42 +528,48 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
 
         quote!(
             Future<$ret> $(DartCodeOracle::fn_name(func.name()))($args) {
-                return uniffiRustCallAsync(
-                  () => $(func.ffi_func().name())(
-                    uniffiClonePointer(),
-                    $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
-                  ),
-                  $(DartCodeOracle::async_poll(func, type_helper.get_ci())),
-                  $(DartCodeOracle::async_complete(func, type_helper.get_ci())),
-                  $(DartCodeOracle::async_free(func, type_helper.get_ci())),
-                  $async_lifter,
-                  $error_handler,
-                );
+                $(DartCodeOracle::wrap_ffi_call_stmt(has_borrowed, true, quote!(
+                    uniffiRustCallAsync(
+                      () => $(func.ffi_func().name())(
+                        uniffiClonePointer(),
+                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
+                      ),
+                      $(DartCodeOracle::async_poll(func, type_helper.get_ci())),
+                      $(DartCodeOracle::async_complete(func, type_helper.get_ci())),
+                      $(DartCodeOracle::async_free(func, type_helper.get_ci())),
+                      $async_lifter,
+                      $error_handler,
+                    )
+                )))
             }
 
         )
     } else if ret == quote!(void) {
         quote!(
             $ret $(DartCodeOracle::fn_name(func.name()))($args) {
-                return rustCall((status) {
-                    $(func.ffi_func().name())(
-                        uniffiClonePointer(),
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
-                    );
-                }, $error_handler);
+                $(DartCodeOracle::wrap_ffi_call_stmt(has_borrowed, false, quote!(
+                    rustCall((status) {
+                        $(func.ffi_func().name())(
+                            uniffiClonePointer(),
+                            $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
+                        );
+                    }, $error_handler)
+                )))
             }
         )
     } else {
         quote!(
             $ret $(DartCodeOracle::fn_name(func.name()))($args) {
-                return rustCallWithLifter(
-                    (status) => $(func.ffi_func().name())(
-                        uniffiClonePointer(),
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
-                    ),
-                    $lifter,
-                    $error_handler
-                );
+                $(DartCodeOracle::wrap_ffi_call_stmt(has_borrowed, false, quote!(
+                    rustCallWithLifter(
+                        (status) => $(func.ffi_func().name())(
+                            uniffiClonePointer(),
+                            $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
+                        ),
+                        $lifter,
+                        $error_handler
+                    )
+                )))
             }
         )
     }
@@ -628,6 +657,18 @@ fn trait_method_call(
     arg_exprs: &[dart::Tokens],
 ) -> dart::Tokens {
     assert_eq!(method.arguments().len(), arg_exprs.len());
+
+    // These derived trait methods (Display/Debug/Eq/Hash) never take a borrowed
+    // `&[u8]`, so — unlike the other call-site generators — this path does not wrap
+    // the call in an `Arena` and lowers args via `type_lower_fn` directly. If a
+    // future trait-derived method DID take borrowed bytes, `type_lower_fn` would
+    // fall through to the owned `RustBuffer` lowering (the wrong FFI type) and the
+    // native copy would leak — such a method must be routed through
+    // `wrap_ffi_call_stmt` instead.
+    debug_assert!(
+        method.arguments().iter().all(|a| !a.is_borrowed_bytes()),
+        "trait_method_call does not handle borrowed &[u8] args; route through wrap_ffi_call_stmt",
+    );
 
     let ffi_name = method.ffi_func().name();
 

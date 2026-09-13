@@ -278,7 +278,7 @@ impl CodeType for MapCodeType {
     fn canonical_name(&self) -> String {
         let key = DartCodeOracle::find(self.key()).canonical_name();
         let val = DartCodeOracle::find(self.value()).canonical_name();
-        format!("Map{}To{}", key, val)
+        format!("Map{key}To{val}")
     }
 }
 
