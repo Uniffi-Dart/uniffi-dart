@@ -70,6 +70,7 @@ members = [
     "fixtures/docstring-proc-macro",
     "fixtures/duration_type_test",
     "fixtures/type-limits",
+    "fixtures/time-types",
     "fixtures/hello_world",
     "fixtures/metadata",
     "fixtures/simple-iface",

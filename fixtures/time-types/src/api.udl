@@ -23,6 +23,13 @@ namespace time_types {
 
   timestamp now();
 
+  timestamp timestamp_from_parts(i64 seconds, u32 nanos);
+  u32 timestamp_nanos(timestamp value);
+  TimeBundle echo_time_bundle(TimeBundle value);
+  timestamp callback_timestamp(TimeSource source, timestamp value);
+  [Async]
+  timestamp return_timestamp_async(timestamp value);
+
   boolean equal(timestamp a, timestamp b);
 
   boolean optional(timestamp? a, duration? b);
@@ -32,4 +39,21 @@ namespace time_types {
 
   [Throws=ChronologicalError]
   timestamp set_seconds_before_unix_epoch(u64 seconds);
-}; 
+};
+
+dictionary TimeBundle {
+  timestamp at;
+  timestamp? optional_at;
+  sequence<timestamp> history;
+  record<string, timestamp> named;
+};
+
+callback interface TimeSource {
+  timestamp echo(timestamp value);
+};
+
+interface TimeKeeper {
+  constructor(timestamp value);
+  timestamp get();
+  timestamp echo(timestamp value);
+};

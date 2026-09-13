@@ -87,7 +87,7 @@ Run specific fixture tests:
 ```bash
 cargo nextest run -p simple_fns --nocapture
 cargo nextest run -p dart_async --nocapture
-cargo nextest run -p time_types --nocapture
+cargo nextest run -p time-types --nocapture
 ```
 
 For nightly compiler features (`genco` whitespace detection):
@@ -105,6 +105,25 @@ Our comprehensive fixture suite has identified 5 critical blocking features:
 3. **Dictionary default values** - Named parameters with defaults  
 4. **Trait method support** - Advanced trait functionality
 5. **BigInt support** - Large integer boundary handling
+
+## Timestamps
+
+Rust `SystemTime` / UniFFI `timestamp` values map to Dart `DateTime`. Returned
+values use UTC; local `DateTime` inputs preserve the same instant. Nanoseconds
+below Dart's microsecond precision are truncated toward the Unix epoch. Values
+outside `DateTime`'s range and malformed nanosecond fields are rejected.
+
+UniFFI 0.31.2 stores the sign in the whole-seconds portion of a timestamp. It
+cannot distinguish a negative subsecond offset from a positive one. Dart inputs
+strictly between `1969-12-31T23:59:59Z` and `1970-01-01T00:00:00Z` are therefore
+rejected rather than silently changing their instant. Rust outputs in that
+interval have already lost their sign when serialized; Dart cannot recover it.
+The epoch itself and representable timestamps at least one second before it
+are supported.
+
+The active `time-types` fixture covers timestamps in functions, objects,
+callbacks, async results, records, optionals, lists and maps, as well as range
+checks and precision boundaries.
 
 ## Versioning
 

@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 use chrono::offset::Utc;
@@ -42,6 +43,63 @@ fn diff(a: SystemTime, b: SystemTime) -> Result<Duration> {
 
 fn now() -> SystemTime {
     SystemTime::now()
+}
+
+fn timestamp_from_parts(seconds: i64, nanos: u32) -> SystemTime {
+    let offset = Duration::new(seconds.unsigned_abs(), nanos);
+    if seconds < 0 {
+        SystemTime::UNIX_EPOCH - offset
+    } else {
+        SystemTime::UNIX_EPOCH + offset
+    }
+}
+
+fn timestamp_nanos(value: SystemTime) -> u32 {
+    value
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_else(|error| error.duration())
+        .subsec_nanos()
+}
+
+pub struct TimeBundle {
+    at: SystemTime,
+    optional_at: Option<SystemTime>,
+    history: Vec<SystemTime>,
+    named: HashMap<String, SystemTime>,
+}
+
+fn echo_time_bundle(value: TimeBundle) -> TimeBundle {
+    value
+}
+
+pub trait TimeSource: Send + Sync {
+    fn echo(&self, value: SystemTime) -> SystemTime;
+}
+
+fn callback_timestamp(source: Box<dyn TimeSource>, value: SystemTime) -> SystemTime {
+    source.echo(value)
+}
+
+async fn return_timestamp_async(value: SystemTime) -> SystemTime {
+    value
+}
+
+pub struct TimeKeeper {
+    value: SystemTime,
+}
+
+impl TimeKeeper {
+    fn new(value: SystemTime) -> Self {
+        Self { value }
+    }
+
+    fn get(&self) -> SystemTime {
+        self.value
+    }
+
+    fn echo(&self, value: SystemTime) -> SystemTime {
+        value
+    }
 }
 
 fn equal(a: SystemTime, b: SystemTime) -> bool {
