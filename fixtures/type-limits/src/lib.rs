@@ -34,6 +34,12 @@ fn take_u32(v: u32) -> u32 {
 }
 
 fn take_u64(v: u64) -> u64 {
+    v
+}
+
+// Only the rejection test uses this entry point. Ordinary round trips can run
+// concurrently in other Dart isolates without changing its counter.
+fn observed_u64(v: u64) -> u64 {
     U64_CALLS.fetch_add(1, Ordering::Relaxed);
     v
 }

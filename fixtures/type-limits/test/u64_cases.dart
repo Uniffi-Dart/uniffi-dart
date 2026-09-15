@@ -74,12 +74,18 @@ final Map<String, FutureOr<void> Function()> u64Cases = {
     }
   },
   'invalid inputs never reach the Rust function': () {
+    final initial = u64Calls();
+    equal(observedU64(v: 1), BigInt.one);
     final before = u64Calls();
+    equal(before, initial + 1);
+    // Ordinary round trips must not alter this test's observation counter.
+    equal(takeU64(v: 42), BigInt.from(42));
+    equal(u64Calls(), before);
     for (final value in <Object>[-1, -BigInt.one, u64Max + BigInt.one]) {
-      rejects<RangeError>(() => takeU64(v: value));
+      rejects<RangeError>(() => observedU64(v: value));
     }
     for (final value in <Object>[1.0, '42', true, Object()]) {
-      rejects<ArgumentError>(() => takeU64(v: value));
+      rejects<ArgumentError>(() => observedU64(v: value));
     }
     equal(u64Calls(), before);
   },
