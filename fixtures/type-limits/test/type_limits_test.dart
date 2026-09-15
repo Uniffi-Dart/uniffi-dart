@@ -103,7 +103,7 @@ void main() {
 
       test('u64 bounds', () {
         // Test valid lower bound
-        expect(takeU64(v: 0), 0);
+        expect(takeU64(v: 0), BigInt.zero);
 
         // Test invalid lower bound
         expect(() => takeU64(v: -1), throwsArgumentError);
@@ -138,7 +138,7 @@ void main() {
       test('u64 bounds', () {
         // Test valid upper bound within 53-bit safe integer range
         const maxSafeU64 = 9007199254740991; // 2^53 - 1
-        expect(takeU64(v: maxSafeU64), maxSafeU64);
+        expect(takeU64(v: maxSafeU64), BigInt.from(maxSafeU64));
 
         // Test values that would overflow are caught by Dart
         // We can't easily test overflow in Dart as it handles large integers differently
@@ -231,7 +231,7 @@ void main() {
         expect(takeU8(v: 100), 100);
         expect(takeU16(v: 10000), 10000);
         expect(takeU32(v: 1000000000), 1000000000);
-        expect(takeU64(v: 1000000000000000000), 1000000000000000000);
+        expect(takeU64(v: 1000000000000000000), BigInt.from(1000000000000000000));
       });
 
       test('large invalid numbers', () {
@@ -254,7 +254,7 @@ void main() {
         expect(takeU8(v: 0), 0);
         expect(takeU16(v: 0), 0);
         expect(takeU32(v: 0), 0);
-        expect(takeU64(v: 0), 0);
+        expect(takeU64(v: 0), BigInt.zero);
         expect(takeF32(v: 0.0), 0.0);
         expect(takeF64(v: 0.0), 0.0);
       });

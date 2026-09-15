@@ -8,10 +8,55 @@ namespace type_limits {
   u16 take_u16(u16 v);
   u32 take_u32(u32 v);
   u64 take_u64(u64 v);
+  u64 max_u64();
+  u64 default_u64(optional u64 v = 18446744073709551615);
+  u64? optional_u64(u64? v);
+  u64? default_optional(optional u64? v = 18446744073709551615);
+  sequence<u64?> sequence_u64(sequence<u64?> v);
+  record<u64, sequence<u64?>> map_u64(record<u64, sequence<u64?>> v);
+  U64Record record_u64(U64Record v);
+  U64Value enum_u64(U64Value v);
+  U64Alias alias_u64(U64Alias v);
+  u64 callback_u64(U64Callback callback, u64 v);
+  U64Alias callback_alias(U64Callback callback, U64Alias v);
+  sequence<u64?> callback_sequence(U64Callback callback, sequence<u64?> v);
+  u32 u64_calls();
 
   f32 take_f32(f32 v);
   f64 take_f64(f64 v);
 
   string take_string(string v);
   bytes take_bytes(bytes v);
-}; 
+};
+
+[Custom]
+typedef u64 U64Alias;
+
+dictionary U64Record {
+  u64 value;
+  u64 default_max = 18446744073709551615;
+  u64 default_zero = 0;
+  u64? maybe;
+  u64? optional_max = 18446744073709551615;
+  sequence<u64?> values = [];
+  record<u64, sequence<u64?>> mapping = {};
+  U64Alias alias;
+};
+
+[Enum]
+interface U64Value {
+  Single(u64 value);
+  Multiple(u64 value, sequence<u64?> values);
+};
+
+interface U64Box {
+  constructor(u64 value);
+  u64 get();
+  u64 echo(u64 value);
+};
+
+callback interface U64Callback {
+  u64 transform(u64 value);
+  U64Alias transform_alias(U64Alias value);
+  sequence<u64?> transform_sequence(sequence<u64?> values);
+};
