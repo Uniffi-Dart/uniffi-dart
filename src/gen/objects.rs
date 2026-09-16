@@ -171,7 +171,7 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
                       $(DartCodeOracle::async_poll(constructor, type_helper.get_ci())),
                       $(DartCodeOracle::async_complete(constructor, type_helper.get_ci())),
                       $(DartCodeOracle::async_free(constructor, type_helper.get_ci())),
-                      (int handle) => $cls_name._(Pointer<Void>.fromAddress(handle)),
+                      (int handle) => $cls_name._(handle),
                       $error_handler,
                     );
                 }
@@ -262,12 +262,12 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
     quote! {
         $interface_definition
 
-        final _$finalizer_cls_name = Finalizer<Pointer<Void>>((ptr) {
+        final _$finalizer_cls_name = Finalizer<int>((ptr) {
           rustCall((status) => $ffi_object_free_name(ptr, status));
         });
 
         class $cls_name $implements_clause {
-            late final Pointer<Void> _ptr;
+            late final int _ptr;
 
             // Private constructor for internal use / lift
             $cls_name._(this._ptr) {
@@ -278,12 +278,12 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
             $( for ctor_def in constructor_definitions => $ctor_def )
             $( for factory_def in async_constructor_factories => $factory_def )
 
-            // Factory for lifting pointers
-            factory $cls_name.lift(Pointer<Void> ptr) {
+            // Factory for lifting opaque UniFFI handles
+            factory $cls_name.lift(int ptr) {
                 return $cls_name._(ptr);
             }
 
-            Pointer<Void> uniffiClonePointer() {
+            int uniffiClonePointer() {
                 return rustCall((status) => $ffi_object_clone_name(_ptr, status));
             }
 
@@ -299,28 +299,27 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
         }
 
         class $ffi_converter_name {
-            static $cls_name lift(Pointer<Void> ptr) {
+            static $cls_name lift(int ptr) {
                 return $cls_name.lift(ptr);
             }
 
-            static Pointer<Void> lower($cls_name value) {
+            static int lower($cls_name value) {
                 return value.uniffiClonePointer();
             }
 
-            // A Rust pointer is 8 bytes
+            // UniFFI handles are always 8 bytes, including on 32-bit targets
             static int allocationSize($cls_name value) {
                 return 8;
             }
 
             static LiftRetVal<$cls_name> read(Uint8List buf) {
                 final handle = buf.buffer.asByteData(buf.offsetInBytes).getInt64(0);
-                final pointer = Pointer<Void>.fromAddress(handle);
-                return LiftRetVal($cls_name.lift(pointer), 8);
+                return LiftRetVal($cls_name.lift(handle), 8);
             }
 
             static int write($cls_name value, Uint8List buf) {
                 final handle = lower(value);
-                buf.buffer.asByteData(buf.offsetInBytes).setInt64(0, handle.address);
+                buf.buffer.asByteData(buf.offsetInBytes).setInt64(0, handle);
                 return 8;
             }
         }
@@ -351,14 +350,14 @@ fn generate_callback_trait_rust_impl(
                 $(&finalizer_field).attach(this, _ptr, detach: this);
             }
 
-            static final Finalizer<Pointer<Void>> $(&finalizer_field) =
-                Finalizer<Pointer<Void>>((ptr) {
+            static final Finalizer<int> $(&finalizer_field) =
+                Finalizer<int>((ptr) {
                     rustCall((status) => $ffi_object_free_name(ptr, status));
                 });
 
-            Pointer<Void> _ptr;
+            int _ptr;
 
-            Pointer<Void> uniffiClonePointer() {
+            int uniffiClonePointer() {
                 return rustCall((status) => $ffi_object_clone_name(_ptr, status));
             }
 
@@ -402,17 +401,6 @@ fn generate_callback_trait_rust_method(
     };
 
     if method.is_async() {
-        let async_lifter = if let Some(ret_type) = method.return_type() {
-            match ret_type {
-                uniffi_bindgen::interface::Type::Object { .. } => {
-                    quote!((ptr) => $lifter(Pointer<Void>.fromAddress(ptr)))
-                }
-                _ => lifter.clone(),
-            }
-        } else {
-            lifter.clone()
-        };
-
         quote! {
             @override
             Future<$ret> $method_name($(for a in &dart_args => $a,)) {
@@ -424,7 +412,7 @@ fn generate_callback_trait_rust_method(
                     $(DartCodeOracle::async_poll(method, type_helper.get_ci())),
                     $(DartCodeOracle::async_complete(method, type_helper.get_ci())),
                     $(DartCodeOracle::async_free(method, type_helper.get_ci())),
-                    $async_lifter,
+                    $lifter,
                     $error_handler,
                 );
             }
@@ -491,18 +479,6 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
     };
 
     if func.is_async() {
-        // For async methods returning objects, we need to convert the int pointer to Pointer<Void>
-        let async_lifter = if let Some(ret_type) = func.return_type() {
-            match ret_type {
-                uniffi_bindgen::interface::Type::Object { .. } => {
-                    quote!((ptr) => $lifter(Pointer<Void>.fromAddress(ptr)))
-                }
-                _ => lifter.clone(),
-            }
-        } else {
-            lifter.clone()
-        };
-
         quote!(
             Future<$ret> $(DartCodeOracle::fn_name(func.name()))($args) {
                 return uniffiRustCallAsync(
@@ -513,7 +489,7 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
                   $(DartCodeOracle::async_poll(func, type_helper.get_ci())),
                   $(DartCodeOracle::async_complete(func, type_helper.get_ci())),
                   $(DartCodeOracle::async_free(func, type_helper.get_ci())),
-                  $async_lifter,
+                  $lifter,
                   $error_handler,
                 );
             }
@@ -691,9 +667,9 @@ fn generate_trait_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> 
 
     quote! {
         abstract class $cls_name {
-            factory $cls_name.lift(Pointer<Void> ptr) {
+            factory $cls_name.lift(int ptr) {
                 // UniFFI 0.30.0: Check if handle is from foreign side (lowest bit set)
-                final handle = ptr.address;
+                final handle = ptr;
                 final isForeign = (handle & 0x1) != 0;
 
                 if (isForeign) {
@@ -711,11 +687,11 @@ fn generate_trait_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> 
         }
 
         class $ffi_converter_name {
-            static $cls_name lift(Pointer<Void> ptr) {
+            static $cls_name lift(int ptr) {
                 return $cls_name.lift(ptr);
             }
 
-            static Pointer<Void> lower($cls_name value) {
+            static int lower($cls_name value) {
                 if (value is $(&impl_name)) {
                     return value.uniffiClonePointer();
                 }
@@ -731,13 +707,12 @@ fn generate_trait_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> 
 
             static LiftRetVal<$cls_name> read(Uint8List buf) {
                 final handle = buf.buffer.asByteData(buf.offsetInBytes).getInt64(0);
-                final pointer = Pointer<Void>.fromAddress(handle);
-                return LiftRetVal($cls_name.lift(pointer), 8);
+                return LiftRetVal($cls_name.lift(handle), 8);
             }
 
             static int write($cls_name value, Uint8List buf) {
                 final handle = lower(value);
-                buf.buffer.asByteData(buf.offsetInBytes).setInt64(0, handle.address);
+                buf.buffer.asByteData(buf.offsetInBytes).setInt64(0, handle);
                 return 8;
             }
         }
@@ -747,16 +722,16 @@ fn generate_trait_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> 
                 $(&finalizer_field).attach(this, _ptr, detach: this);
             }
 
-            static final Finalizer<Pointer<Void>> $(&finalizer_field) =
-                Finalizer<Pointer<Void>>((ptr) {
+            static final Finalizer<int> $(&finalizer_field) =
+                Finalizer<int>((ptr) {
                     rustCall((status) => $ffi_object_free_name(ptr, status));
                 });
 
-            Pointer<Void> _ptr;
+            int _ptr;
 
             static int allocationSize($(&impl_name) _) => 8;
 
-            Pointer<Void> uniffiClonePointer() {
+            int uniffiClonePointer() {
                 return rustCall((status) => $ffi_object_clone_name(_ptr, status));
             }
 

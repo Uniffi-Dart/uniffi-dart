@@ -498,17 +498,17 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
             final _uniffiRustFutureContinuationHandles = UniffiHandleMap<Completer<int>>();
 
             Future<T> uniffiRustCallAsync<T, F>(
-                Pointer<Void> Function() rustFutureFunc,
-                void Function(Pointer<Void>, Pointer<NativeFunction<UniffiRustFutureContinuationCallback>>, Pointer<Void>) pollFunc,
-                F Function(Pointer<Void>, Pointer<RustCallStatus>) completeFunc,
-                void Function(Pointer<Void>) freeFunc,
+                int Function() rustFutureFunc,
+                void Function(int, Pointer<NativeFunction<UniffiRustFutureContinuationCallback>>, int) pollFunc,
+                F Function(int, Pointer<RustCallStatus>) completeFunc,
+                void Function(int) freeFunc,
                 T Function(F) liftFunc, [
                 UniffiRustCallStatusErrorHandler? errorHandler,
             ]) async {
                 final rustFuture = rustFutureFunc();
                 final completer = Completer<int>();
                 final handle = _uniffiRustFutureContinuationHandles.insert(completer);
-                final callbackData = Pointer<Void>.fromAddress(handle);
+                final callbackData = handle;
 
                 late final NativeCallable<UniffiRustFutureContinuationCallback> callback;
 
