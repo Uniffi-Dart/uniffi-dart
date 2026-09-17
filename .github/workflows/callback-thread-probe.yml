@@ -1,0 +1,59 @@
+name: Callback thread probe
+
+on:
+  pull_request:
+    paths:
+      - 'fixtures/callback-thread-relay/**'
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/callback-thread-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Callback probe (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [jit, aot]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.85.1
+          components: clippy
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target/relay-validation'
+      - name: Run the probe and failure controls
+        shell: bash
+        run: |
+          args=()
+          if [ '${{ matrix.mode }}' = aot ]; then args+=(--aot); fi
+          python3 fixtures/callback-thread-relay/probe/run.py --dart dart "${args[@]}"
+      - name: Run generated dispatch and failure controls
+        shell: bash
+        run: |
+          args=()
+          if [ '${{ matrix.mode }}' = aot ]; then args+=(--aot); fi
+          python3 fixtures/callback-thread-relay/probe/run_generated.py --dart dart "${args[@]}"
+      - name: Upload probe reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: callback-probe-${{ matrix.mode }}
+          path: |
+            target/relay-results*/results.json
+            target/relay-results*/*.log
+            target/generated-dispatch-*/results.json
+            target/generated-dispatch-*/*.log
+          if-no-files-found: warn

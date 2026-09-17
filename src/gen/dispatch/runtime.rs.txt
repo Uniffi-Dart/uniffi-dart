@@ -1,0 +1,265 @@
+// Generated native runtime for synchronous callback dispatch.
+// Borrowed pointers stay valid while their FFI caller blocks. Owned payloads
+// pass through the request without cloning their native allocations.
+#![allow(non_snake_case, non_upper_case_globals, dead_code)]
+// Generated adapters use the same transfer path for void and value results.
+#![allow(clippy::unused_unit, clippy::let_unit_value, clippy::unit_arg, clippy::let_and_return)]
+#[cfg(not(target_pointer_width = "64"))]
+compile_error!("callback dispatch currently requires a 64-bit target");
+use std::{
+    any::Any,
+    collections::{HashMap, VecDeque},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc, Arc, Condvar, Mutex, OnceLock,
+    },
+    thread,
+};
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RustBuffer {
+    capacity: u64,
+    len: u64,
+    data: *mut u8,
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RustCallStatus {
+    code: i8,
+    error_buf: RustBuffer,
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ForeignBytes {
+    len: i32,
+    data: *const u8,
+}
+// Only generated C ABI argument/result tuples enter this wrapper. Pointer
+// pointees are kept alive by the synchronously blocked FFI caller. The owner
+// does not access them concurrently with the worker.
+struct Transfer<T>(T);
+unsafe impl<T> Send for Transfer<T> {}
+impl<T> Transfer<T> {
+    fn take(self) -> T {
+        self.0
+    }
+}
+type Job = Box<dyn FnOnce() + Send>;
+type Wake = extern "C" fn();
+#[derive(Default)]
+struct State {
+    jobs: VecDeque<Job>,
+    active: usize,
+    notified: bool,
+    closed: bool,
+}
+struct Endpoint {
+    id: u64,
+    wake: Wake,
+    state: Mutex<State>,
+    ready: Condvar,
+    vtables: Mutex<HashMap<&'static str, Box<dyn Any + Send + Sync>>>,
+}
+impl Endpoint {
+    fn notify(&self, state: &mut State) {
+        if state.active == 0 && !state.jobs.is_empty() && !state.notified {
+            state.notified = true;
+            (self.wake)();
+        }
+    }
+    fn push(&self, job: Job) {
+        let mut s = self.state.lock().unwrap();
+        assert!(!s.closed, "dispatch after close");
+        s.jobs.push_back(job);
+        self.notify(&mut s);
+        self.ready.notify_one();
+    }
+    fn enter(&self, listener: bool) {
+        OWNERS.with(|owners| owners.borrow_mut().push(self.id));
+        let mut s = self.state.lock().unwrap();
+        assert!(!s.closed);
+        if listener {
+            assert!(s.notified);
+            s.notified = false;
+        }
+        s.active += 1;
+    }
+    fn leave(&self) {
+        OWNERS.with(|owners| assert_eq!(owners.borrow_mut().pop(), Some(self.id)));
+        let mut s = self.state.lock().unwrap();
+        s.active -= 1;
+        self.notify(&mut s);
+    }
+    fn pump(&self, wait: bool) -> bool {
+        let job = {
+            let mut s = self.state.lock().unwrap();
+            while wait && s.jobs.is_empty() {
+                s = self.ready.wait(s).unwrap();
+            }
+            s.jobs.pop_front()
+        };
+        if let Some(job) = job {
+            job();
+            true
+        } else {
+            false
+        }
+    }
+    fn vtable<T: Clone + 'static>(&self, name: &'static str) -> T {
+        self.vtables.lock().unwrap().get(name).unwrap().downcast_ref::<T>().unwrap().clone()
+    }
+}
+thread_local! { static OWNERS: std::cell::RefCell<Vec<u64>> = const { std::cell::RefCell::new(Vec::new()) }; }
+static NEXT: AtomicU64 = AtomicU64::new(1);
+fn next_id() -> u64 {
+    NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(2))
+        .expect("dispatch handle space exhausted")
+}
+static ENDPOINTS: OnceLock<Mutex<HashMap<u64, Arc<Endpoint>>>> = OnceLock::new();
+fn endpoints() -> &'static Mutex<HashMap<u64, Arc<Endpoint>>> {
+    ENDPOINTS.get_or_init(Default::default)
+}
+fn endpoint(id: u64) -> Arc<Endpoint> {
+    endpoints().lock().unwrap().get(&id).expect("unknown dispatch endpoint").clone()
+}
+#[derive(Clone)]
+struct Route {
+    endpoint: u64,
+    local: u64,
+    kind: &'static str,
+}
+static ROUTES: OnceLock<Mutex<HashMap<u64, Route>>> = OnceLock::new();
+fn routes() -> &'static Mutex<HashMap<u64, Route>> {
+    ROUTES.get_or_init(Default::default)
+}
+fn route(id: u64, kind: &'static str) -> Route {
+    let r = routes().lock().unwrap().get(&id).expect("unknown callback handle").clone();
+    assert_eq!(r.kind, kind);
+    r
+}
+fn register(ep: u64, local: u64, kind: &'static str) -> u64 {
+    let id = next_id();
+    routes().lock().unwrap().insert(id, Route { endpoint: ep, local, kind });
+    id
+}
+#[no_mangle]
+pub extern "C" fn uniffi_dispatch_unregister(ep: u64, handle: u64) {
+    let mut map = routes().lock().unwrap();
+    assert_eq!(map.get(&handle).unwrap().endpoint, ep);
+    map.remove(&handle).unwrap();
+}
+fn dispatch<R: Send + 'static>(ep: &Arc<Endpoint>, f: impl FnOnce() -> R + Send + 'static) -> R {
+    if OWNERS.with(|owners| owners.borrow().last() == Some(&ep.id)) {
+        return f();
+    }
+    let (tx, rx) = mpsc::sync_channel(1);
+    ep.push(Box::new(move || {
+        tx.send(f()).unwrap();
+    }));
+    rx.recv().expect("dispatch owner stopped")
+}
+struct Active(Arc<Endpoint>);
+impl Drop for Active {
+    fn drop(&mut self) {
+        self.0.leave();
+    }
+}
+fn run<R: Send + 'static>(id: u64, f: impl FnOnce() -> R + Send + 'static) -> R {
+    let ep = endpoint(id);
+    ep.enter(false);
+    let _active = Active(ep.clone());
+    let notify = ep.clone();
+    let (tx, rx) = mpsc::sync_channel(1);
+    let worker = thread::spawn(move || {
+        tx.send(f()).unwrap();
+        notify.push(Box::new(|| {}));
+    });
+    let value = loop {
+        match rx.try_recv() {
+            Ok(v) => break v,
+            Err(mpsc::TryRecvError::Empty) => {
+                ep.pump(true);
+            }
+            Err(mpsc::TryRecvError::Disconnected) => panic!("native worker lost completion"),
+        }
+    };
+    worker.join().unwrap();
+    value
+}
+#[no_mangle]
+pub extern "C" fn uniffi_dispatch_create(wake: Wake) -> u64 {
+    let id = next_id();
+    endpoints().lock().unwrap().insert(
+        id,
+        Arc::new(Endpoint {
+            id,
+            wake,
+            state: Mutex::new(State::default()),
+            ready: Condvar::new(),
+            vtables: Mutex::new(HashMap::new()),
+        }),
+    );
+    id
+}
+#[no_mangle]
+pub extern "C" fn uniffi_dispatch_drain(id: u64) {
+    let ep = endpoint(id);
+    ep.enter(true);
+    let _active = Active(ep.clone());
+    for _ in 0..64 {
+        if !ep.pump(false) {
+            break;
+        }
+    }
+}
+#[no_mangle]
+pub extern "C" fn uniffi_dispatch_close(id: u64) -> bool {
+    let ep = endpoint(id);
+    let routes = routes().lock().unwrap();
+    if routes.values().any(|r| r.endpoint == id) {
+        return false;
+    }
+    let mut s = ep.state.lock().unwrap();
+    if s.active != 0 || s.notified || !s.jobs.is_empty() {
+        return false;
+    }
+    s.closed = true;
+    endpoints().lock().unwrap().remove(&id);
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    extern "C" fn wake() {}
+    #[test]
+    fn close_waits_for_pending_notification() {
+        let id = uniffi_dispatch_create(wake);
+        let ep = endpoint(id);
+        ep.push(Box::new(|| {}));
+        assert!(!uniffi_dispatch_close(id));
+        uniffi_dispatch_drain(id);
+        assert!(uniffi_dispatch_close(id));
+        assert!(!endpoints().lock().unwrap().contains_key(&id));
+    }
+    #[test]
+    fn close_keeps_other_isolates_routes_alive() {
+        let first = uniffi_dispatch_create(wake);
+        let second = uniffi_dispatch_create(wake);
+        let handle = register(second, 1, "test");
+        assert!(uniffi_dispatch_close(first));
+        assert!(!uniffi_dispatch_close(second));
+        assert_eq!(route(handle, "test").endpoint, second);
+        routes().lock().unwrap().remove(&handle).unwrap();
+        assert!(uniffi_dispatch_close(second));
+    }
+    #[test]
+    fn close_waits_for_active_call() {
+        let id = uniffi_dispatch_create(wake);
+        let ep = endpoint(id);
+        ep.enter(false);
+        assert!(!uniffi_dispatch_close(id));
+        ep.leave();
+        assert!(uniffi_dispatch_close(id));
+    }
+}

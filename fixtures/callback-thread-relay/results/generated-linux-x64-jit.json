@@ -1,0 +1,155 @@
+{
+  "platform": "Linux-6.18.39-1-lts-x86_64-with-glibc2.43",
+  "mode": "jit",
+  "commit": "8e5e387541fde6608242e7fca2be2f51445939f7",
+  "changes": "M .github/workflows/callback-thread-probe.yml\n M fixtures/callback-thread-relay/README.md\n M fixtures/callback-thread-relay/src/lib.rs\n M src/gen/callback_interface.rs\n M src/gen/functions.rs\n M src/gen/mod.rs\n M src/gen/objects.rs\n M src/gen/render/mod.rs\n M src/gen/types.rs\n?? docs/\n?? fixtures/callback-thread-relay/probe/generated.dart\n?? fixtures/callback-thread-relay/probe/run_generated.py\n?? src/gen/dispatch/",
+  "cases": [
+    {
+      "name": "build",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.14
+    },
+    {
+      "name": "generate",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.31
+    },
+    {
+      "name": "companion-build",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.41
+    },
+    {
+      "name": "companion-tests",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.49
+    },
+    {
+      "name": "companion-clippy",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.17
+    },
+    {
+      "name": "pub",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.12
+    },
+    {
+      "name": "format",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.09
+    },
+    {
+      "name": "direct",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.65
+    },
+    {
+      "name": "thread",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.42
+    },
+    {
+      "name": "parallel",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.46
+    },
+    {
+      "name": "clone",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.38
+    },
+    {
+      "name": "errors",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.37
+    },
+    {
+      "name": "nested",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.4
+    },
+    {
+      "name": "cross-nested",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.32
+    },
+    {
+      "name": "retained",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.49
+    },
+    {
+      "name": "retained-clone",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.54
+    },
+    {
+      "name": "repeat",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.34
+    },
+    {
+      "name": "isolates",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.62
+    },
+    {
+      "name": "rollback",
+      "exit": 0,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.37
+    },
+    {
+      "name": "state-control",
+      "exit": 255,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.44
+    },
+    {
+      "name": "rollback-control",
+      "exit": 255,
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.43
+    }
+  ]
+}

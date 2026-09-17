@@ -1,0 +1,158 @@
+{
+  "source_commit": "85b78bbc0b62e832c7d0190963de57a033fa5200",
+  "source_changes": "",
+  "platform": "Linux-6.18.39-1-lts-x86_64-with-glibc2.43",
+  "architecture": "x86_64",
+  "python": "3.14.6",
+  "offline_requested": true,
+  "timeout_seconds": 120,
+  "cases": [
+    {
+      "case": "dart-version",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.01
+    },
+    {
+      "case": "rust-version",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.05
+    },
+    {
+      "case": "build",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.6
+    },
+    {
+      "case": "generate",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.12
+    },
+    {
+      "case": "baseline-pub",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.95
+    },
+    {
+      "case": "baseline-direct",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 8.26
+    },
+    {
+      "case": "baseline-thread",
+      "exit": -6,
+      "expectation": "crash",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 5.2
+    },
+    {
+      "case": "relay-pub",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 1.47
+    },
+    {
+      "case": "relay-direct",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 8.31
+    },
+    {
+      "case": "relay-thread",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 4.64
+    },
+    {
+      "case": "relay-parallel",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 4.38
+    },
+    {
+      "case": "relay-clone",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 4.56
+    },
+    {
+      "case": "relay-errors",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 4.48
+    },
+    {
+      "case": "relay-nested",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 4.6
+    },
+    {
+      "case": "relay-repeat",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 4.6
+    },
+    {
+      "case": "mutation-pub",
+      "exit": 0,
+      "expectation": "success",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 0.96
+    },
+    {
+      "case": "mutation-state",
+      "exit": 255,
+      "expectation": "state-failure",
+      "passed": true,
+      "timed_out": false,
+      "seconds": 8.16
+    }
+  ],
+  "dart": "Dart SDK version: 3.13.0 (stable) (Thu Aug 27 07:47:20 2026 +0000) on \"linux_x64\"",
+  "rust": "rustc 1.85.1 (4eb161250 2025-03-15)",
+  "generated_sha256": "27a6e44f3a25000b05708fef815f4aff39a7d23870a4837e763f3e09708c6660",
+  "symbol_overrides": {
+    "uniffi_callback_thread_relay_fn_init_callback_vtable_sink": "relay_init_callback_vtable_sink",
+    "uniffi_callback_thread_relay_fn_func_call_bytes_direct": "relay_call_bytes_direct",
+    "uniffi_callback_thread_relay_fn_func_call_bytes_thread": "relay_call_bytes_thread",
+    "uniffi_callback_thread_relay_fn_func_call_bytes_parallel": "relay_call_bytes_parallel",
+    "uniffi_callback_thread_relay_fn_func_call_checked_thread": "relay_call_checked_thread",
+    "uniffi_callback_thread_relay_fn_func_call_clone_thread": "relay_call_clone_thread"
+  }
+}

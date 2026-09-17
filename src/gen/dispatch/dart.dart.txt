@@ -1,0 +1,81 @@
+const _uniffiDispatchAsset = '@ASSET@';
+@Native<Uint64 Function(Pointer<NativeFunction<Void Function()>>)>(
+  assetId: _uniffiDispatchAsset,
+  symbol: 'uniffi_dispatch_create',
+)
+external int _uniffiDispatchCreate(
+  Pointer<NativeFunction<Void Function()>> wake,
+);
+@Native<Void Function(Uint64)>(
+  assetId: _uniffiDispatchAsset,
+  symbol: 'uniffi_dispatch_drain',
+)
+external void _uniffiDispatchDrain(int endpoint);
+@Native<Bool Function(Uint64)>(
+  assetId: _uniffiDispatchAsset,
+  symbol: 'uniffi_dispatch_close',
+)
+external bool _uniffiDispatchClose(int endpoint);
+
+@Native<Void Function(Uint64, Uint64)>(
+  assetId: _uniffiDispatchAsset,
+  symbol: 'uniffi_dispatch_unregister',
+)
+external void _uniffiDispatchUnregister(int endpoint, int handle);
+
+class _UniffiDispatch {
+  final _pending = <List<void Function()>>[];
+  T call<T>(T Function() invoke) {
+    id;
+    final undo = <void Function()>[];
+    _pending.add(undo);
+    try {
+      return invoke();
+    } finally {
+      _pending.removeLast();
+      for (final release in undo.reversed) {
+        release();
+      }
+    }
+  }
+
+  void onLowered(void Function() undo) {
+    if (_pending.isNotEmpty) _pending.last.add(undo);
+  }
+
+  void transferred() {
+    if (_pending.isNotEmpty) _pending.last.clear();
+  }
+
+  late final NativeCallable<Void Function()> _listener;
+  late final int _id;
+  bool _closed = false;
+  _UniffiDispatch() {
+    if (sizeOf<IntPtr>() != 8)
+      throw UnsupportedError('Callback dispatch requires a 64-bit target');
+    _listener = NativeCallable<Void Function()>.listener(
+      () => _uniffiDispatchDrain(_id),
+    );
+    _id = _uniffiDispatchCreate(_listener.nativeFunction);
+  }
+  int get id {
+    if (_closed) throw StateError('Callback dispatcher is closed');
+    return _id;
+  }
+
+  bool close() {
+    if (_closed) return true;
+    if (_pending.isNotEmpty) return false;
+    if (!_uniffiDispatchClose(_id)) return false;
+    _closed = true;
+    _listener.close();
+    return true;
+  }
+}
+
+final _uniffiDispatch = _UniffiDispatch();
+
+/// Releases this isolate's dispatcher after Rust drops all callback handles.
+/// Returns false while callbacks, native calls or listener messages remain.
+/// Yield to the event loop before retrying. Do not use the bindings after close.
+bool closeCallbackDispatcher() => _uniffiDispatch.close();

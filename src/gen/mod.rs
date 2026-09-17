@@ -19,6 +19,7 @@ mod code_type;
 mod compounds;
 mod custom;
 mod defaults;
+mod dispatch;
 mod enums;
 mod functions;
 mod objects;
@@ -38,6 +39,8 @@ pub struct Config {
     #[serde(default)]
     external_packages: HashMap<String, String>,
     asset_id: Option<String>,
+    #[serde(default)]
+    callback_dispatch: bool,
 }
 
 impl From<&ComponentInterface> for Config {
@@ -47,6 +50,7 @@ impl From<&ComponentInterface> for Config {
             cdylib_name: Some(ci.namespace().to_owned()),
             external_packages: HashMap::new(),
             asset_id: None,
+            callback_dispatch: false,
         }
     }
 }
@@ -96,6 +100,7 @@ fn uniffi_function_definitions(
     ci: &ComponentInterface,
     asset_id: &str,
     include: impl Fn(&str) -> bool,
+    callback_dispatch: bool,
 ) -> dart::Tokens {
     let mut definitions = quote!();
     let mut defined_functions = HashSet::new(); // Track defined function names
@@ -110,6 +115,11 @@ fn uniffi_function_definitions(
         // Check for duplicate function names
         if !defined_functions.insert(fun_name.clone()) {
             // Function name already exists, skip to prevent duplicate definition
+            continue;
+        }
+
+        if callback_dispatch && dispatch::is_adapter(&fun) {
+            definitions.append(dispatch::declaration(&fun, asset_id));
             continue;
         }
 
@@ -174,7 +184,8 @@ pub struct DartWrapper<'a> {
 
 impl<'a> DartWrapper<'a> {
     pub fn new(ci: &'a ComponentInterface, config: &'a Config) -> Self {
-        let type_renderer = TypeHelpersRenderer::new(ci);
+        let mut type_renderer = TypeHelpersRenderer::new(ci);
+        type_renderer.callback_dispatch = config.callback_dispatch;
         DartWrapper { ci, config, type_renderer }
     }
 
@@ -202,10 +213,12 @@ impl<'a> DartWrapper<'a> {
             // The asset ID format is: package:{dart_package_name}/uniffi:{cdylib_name}
             const _uniffiAssetId = $(quoted(format!("package:{}/{}", package_name, asset_id_suffix)));
 
+            $(if self.config.callback_dispatch => $(dispatch::dart_runtime(self.ci, self.config)))
+
             $(functions_definitions)
 
             // FFI function definitions using @Native
-            $(uniffi_function_definitions(self.ci, "_uniffiAssetId", |name| !is_rustbuffer_fn(self.ci, name)))
+            $(uniffi_function_definitions(self.ci, "_uniffiAssetId", |name| !is_rustbuffer_fn(self.ci, name), self.config.callback_dispatch))
 
             // API version and checksum validation
             void _checkApiVersion() {
@@ -248,6 +261,15 @@ impl BindingGenerator for DartBindingGenerator {
         settings: &uniffi_bindgen::GenerationSettings,
         components: &[uniffi_bindgen::Component<Self::Config>],
     ) -> Result<()> {
+        if components.iter().any(|c| c.config.callback_dispatch) {
+            if components.len() != 1 {
+                bail!(
+                    "callback_dispatch currently supports a single component per generated package"
+                );
+            }
+            dispatch::validate(&components[0].ci)?;
+            dispatch::write_native(&components[0].ci, &components[0].config, &settings.out_dir)?;
+        }
         let write_dart = |filename: camino::Utf8PathBuf, tokens: dart::Tokens| -> Result<()> {
             let file = std::fs::File::create(filename)?;
             let mut w = fmt::IoWriter::new(file);
@@ -308,7 +330,7 @@ impl BindingGenerator for DartBindingGenerator {
 
                 const _uniffiAssetId = $(quoted(asset_id));
 
-                $(uniffi_function_definitions(ci, "_uniffiAssetId", |name| is_rustbuffer_fn(ci, name)))
+                $(uniffi_function_definitions(ci, "_uniffiAssetId", |name| is_rustbuffer_fn(ci, name), false))
             };
             write_dart(settings.out_dir.join(format!("{}.dart", types::RUNTIME_MODULE)), runtime)?;
         }
