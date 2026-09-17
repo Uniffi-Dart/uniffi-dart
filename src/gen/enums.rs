@@ -56,6 +56,32 @@ impl Renderable for EnumCodeType {
 pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
     let dart_cls_name = &DartCodeOracle::class_name(obj.name());
     let ffi_converter_name = &obj.as_codetype().ffi_converter_name();
+    // Flat errors are return-only in UniFFI and cannot reliably be lifted
+    // back into Rust for trait calls. Keep their existing representation.
+    let is_error = type_helper.get_ci().is_name_used_as_error(obj.name());
+    let traits = obj.uniffi_trait_methods();
+    let has_display = is_error && !obj.is_flat() && traits.display_fmt.is_some();
+    let mut trait_methods = quote!();
+    if is_error && !obj.is_flat() {
+        for (name, method) in [("toString", traits.display_fmt), ("debugString", traits.debug_fmt)]
+        {
+            if let Some(method) = method {
+                let ffi_name = method.ffi_func().name();
+                trait_methods.append(quote! {
+                    $(if name == "toString" => @override)
+                    String $name() {
+                        final buffer = rustCall((status) =>
+                            $ffi_name($ffi_converter_name.lower(this), status));
+                        try {
+                            return utf8.decoder.convert(buffer.asUint8List());
+                        } finally {
+                            buffer.free();
+                        }
+                    }
+                });
+            }
+        }
+    }
     if obj.is_flat() {
         let is_error_enum = type_helper.get_ci().is_name_used_as_error(obj.name());
         let implements_exception =
@@ -84,6 +110,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                 $(for variant in obj.variants() =>
                 $(DartCodeOracle::enum_variant_name(variant.name())),)
                 ;
+                $trait_methods
             }
 
             class $ffi_converter_name {
@@ -271,35 +298,34 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             }).collect();
 
             // Generate simple toString() method for error enum variants
-            let to_string_method: dart::Tokens =
-                if type_helper.get_ci().is_name_used_as_error(obj.name()) {
-                    if variant_obj.has_fields() {
-                        let field_interpolations = variant_obj
-                            .fields()
-                            .iter()
-                            .enumerate()
-                            .map(|(i, field)| format!("${}", field_name(field, i)))
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        let to_string_with_fields =
-                            format!("\"{variant_dart_cls_name}({field_interpolations})\"");
-                        quote!(
-                            @override
-                            String toString() {
-                                return $(&to_string_with_fields);
-                            }
-                        )
-                    } else {
-                        quote!(
-                            @override
-                            String toString() {
-                                return $(format!("\"{}\"", variant_dart_cls_name));
-                            }
-                        )
-                    }
+            let to_string_method: dart::Tokens = if is_error && !has_display {
+                if variant_obj.has_fields() {
+                    let field_interpolations = variant_obj
+                        .fields()
+                        .iter()
+                        .enumerate()
+                        .map(|(i, field)| format!("${}", field_name(field, i)))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let to_string_with_fields =
+                        format!("\"{variant_dart_cls_name}({field_interpolations})\"");
+                    quote!(
+                        @override
+                        String toString() {
+                            return $(&to_string_with_fields);
+                        }
+                    )
                 } else {
-                    quote!()
-                };
+                    quote!(
+                        @override
+                        String toString() {
+                            return $(format!("\"{}\"", variant_dart_cls_name));
+                        }
+                    )
+                }
+            } else {
+                quote!()
+            };
 
             variants.push(quote!{
                 class $variant_dart_cls_name extends $dart_cls_name {
@@ -374,6 +400,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                 RustBuffer lower();
                 int allocationSize();
                 int write( Uint8List buf);
+                $trait_methods
             }
 
             class $ffi_converter_name {
