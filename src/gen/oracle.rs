@@ -404,6 +404,14 @@ impl DartCodeOracle {
                     outReturn.value = $lowered.lower(result);
                 )
             }
+            Type::Enum { .. } => {
+                // The discriminant, one-based, exactly as the enum's own
+                // FfiConverter writes it.
+                quote!(
+                    final result = obj.$method_name($(for arg in &args => $arg,));
+                    outReturn.value = result.index + 1;
+                )
+            }
             Type::Float32 | Type::Float64 => {
                 // For float return values
                 quote!(
@@ -483,6 +491,11 @@ impl DartCodeOracle {
                 Type::Float64 => quote!(Pointer<Double>),
                 Type::Boolean => quote!(Pointer<Int8>),
                 Type::Object { .. } => quote!(Pointer<Pointer<Void>>),
+                // `native_type_label` gives an enum `Int32`, and
+                // `callback_arg_lift_indexed` reads one back from an int, so
+                // the out pointer has to be an int too or the generated
+                // function does not match its own typedef.
+                Type::Enum { .. } => quote!(Pointer<Int32>),
                 _ => quote!(Pointer<RustBuffer>),
             }
         } else {
