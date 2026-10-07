@@ -34,8 +34,8 @@ pub trait Renderable {
             | Type::Int16
             | Type::UInt32
             | Type::Int32
-            | Type::UInt64
             | Type::Int64 => quote!(int),
+            Type::UInt64 => quote!(uniffiCore.BigInt),
             Type::Float32 | Type::Float64 => quote!(double),
             Type::String => quote!(String),
             Type::Boolean => quote!(bool),

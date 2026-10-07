@@ -22,6 +22,11 @@ pub(crate) fn render_default_value(default_value: &DefaultValue, ty: &Type) -> O
 
 pub(crate) fn render_argument_param(arg: &Argument, type_tokens: dart::Tokens) -> dart::Tokens {
     let name = DartCodeOracle::var_name(arg.name());
+    let type_tokens = if super::unsigned::accepts_u64(&arg.as_type()) {
+        super::unsigned::input_type(&arg.as_type())
+    } else {
+        type_tokens
+    };
 
     if let Some(default_value) = arg.default_value() {
         if let Some(default_expr) = render_default_value(default_value, &arg.as_type()) {

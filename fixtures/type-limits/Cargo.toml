@@ -9,6 +9,7 @@ name = "type_limits"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
+async-trait = "0.1"
 uniffi = { workspace = true }
 
 [build-dependencies]

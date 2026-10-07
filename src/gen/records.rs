@@ -56,6 +56,19 @@ pub fn generate_record(obj: &Record, type_helper: &dyn TypeHelperRenderer) -> da
         .iter()
         .map(|field| {
             let name = DartCodeOracle::var_name(field.name());
+            if super::unsigned::accepts_u64(&field.as_type()) {
+                let ty = super::unsigned::input_type(&field.as_type());
+                if let Some(default) =
+                    field.default_value().and_then(|d| render_default_value(d, &field.as_type()))
+                {
+                    return quote!($ty $name = $default);
+                }
+                return if matches!(field.as_type(), Type::Optional { .. }) {
+                    quote!($ty $name)
+                } else {
+                    quote!(required $ty $name)
+                };
+            }
             if let Some(default_value) = field.default_value() {
                 if let Some(default_expr) = render_default_value(default_value, &field.as_type()) {
                     quote!(this.$name = $(default_expr))
@@ -71,10 +84,32 @@ pub fn generate_record(obj: &Record, type_helper: &dyn TypeHelperRenderer) -> da
         })
         .collect();
 
+    let initializers: Vec<_> = obj
+        .fields()
+        .iter()
+        .filter(|f| super::unsigned::accepts_u64(&f.as_type()))
+        .map(|f| {
+            let name = DartCodeOracle::var_name(f.name());
+            let value = super::unsigned::normalize(&f.as_type(), quote!($(&name)));
+            quote!($name = $value)
+        })
+        .collect();
+    let initializer_list = if initializers.is_empty() {
+        quote!()
+    } else {
+        let mut values = dart::Tokens::new();
+        for (i, init) in initializers.iter().enumerate() {
+            if i != 0 {
+                values.append(quote!(,));
+            }
+            values.append(init.clone());
+        }
+        quote!(: $values)
+    };
     let constructor = if obj.fields().is_empty() {
         quote!($(cls_name)();)
     } else {
-        quote!($(cls_name)({$(for param in constructor_params => $param, )});)
+        quote!($(cls_name)({$(for param in constructor_params => $param, )}) $initializer_list;)
     };
 
     for f in obj.fields() {

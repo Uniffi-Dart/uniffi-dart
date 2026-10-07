@@ -154,9 +154,9 @@ void main() {
     final result = rustGetters.getItems(callback: callback, v: items);
     expect(result.length, equals(2));
     expect(result[0].name, equals('foo'));
-    expect(result[0].value, equals(100));
+    expect(result[0].value, equals(BigInt.from(100)));
     expect(result[1].name, equals('bar'));
-    expect(result[1].value, equals(200));
+    expect(result[1].value, equals(BigInt.from(200)));
   });
 
   test('roundtrip getTag (Optional<Record>) through callback', () {
