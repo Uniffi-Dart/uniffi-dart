@@ -3,7 +3,8 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
-import '../type_limits.dart';
+import '../type_limits.dart' hide BigInt;
+import '../type_limits.dart' as component show BigInt, echoNamedBigInt;
 
 final u64Max = (BigInt.one << 64) - BigInt.one;
 final intMax = (BigInt.one << 63) - BigInt.one;
@@ -46,6 +47,20 @@ class AsyncU64 implements AsyncU64Callback {
 }
 
 final Map<String, FutureOr<void> Function()> u64Cases = {
+  'exported BigInt record preserves core u64 types': () {
+    for (final value in <Object>[0, 42, u64Max]) {
+      final record = component.BigInt(magnitude: value);
+      final component.BigInt returned = component.echoNamedBigInt(
+        value: record,
+      );
+      final BigInt magnitude = returned.magnitude;
+      equal(magnitude, value is int ? BigInt.from(value) : value);
+      // The exported record is not a valid scalar integer input.
+      rejects<ArgumentError>(() => takeU64(v: record));
+    }
+    rejects<RangeError>(() => component.BigInt(magnitude: -1));
+    rejects<RangeError>(() => component.BigInt(magnitude: u64Max + BigInt.one));
+  },
   'scalar boundaries and int input': () {
     final values = <BigInt>[
       BigInt.zero,

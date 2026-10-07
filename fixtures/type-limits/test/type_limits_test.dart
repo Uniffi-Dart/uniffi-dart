@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:test/test.dart';
-import '../type_limits.dart';
+import '../type_limits.dart' hide BigInt;
 
 void main() {
   group('Type Limits Tests', () {

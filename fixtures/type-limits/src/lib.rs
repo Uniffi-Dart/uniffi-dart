@@ -170,3 +170,14 @@ fn callback_alias(callback: Box<dyn U64Callback>, v: U64Alias) -> U64Alias {
 fn default_optional(v: Option<u64>) -> Option<u64> {
     v
 }
+
+// Exercise all u64 bindings in a component that also exports a BigInt record.
+#[derive(uniffi::Record)]
+pub struct BigInt {
+    pub magnitude: u64,
+}
+
+#[uniffi::export]
+pub fn echo_named_big_int(value: BigInt) -> BigInt {
+    value
+}

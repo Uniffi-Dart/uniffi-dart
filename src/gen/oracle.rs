@@ -249,7 +249,7 @@ impl DartCodeOracle {
                 | Type::Int16
                 | Type::Int32
                 | Type::Int64 => quote!(int),
-                Type::UInt64 => quote!(BigInt),
+                Type::UInt64 => quote!(uniffiCore.BigInt),
                 Type::Float32 | Type::Float64 => quote!(double),
                 Type::Boolean => quote!(bool),
                 Type::Bytes => quote!(Uint8List),

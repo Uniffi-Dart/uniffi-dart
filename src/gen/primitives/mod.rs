@@ -153,7 +153,7 @@ impl_code_type_for_primitive!(Int64CodeType, "int", "Int64");
 impl_code_type_for_primitive!(UInt8CodeType, "int", "UInt8");
 impl_code_type_for_primitive!(UInt16CodeType, "int", "UInt16");
 impl_code_type_for_primitive!(UInt32CodeType, "int", "UInt32");
-impl_code_type_for_primitive!(UInt64CodeType, "BigInt", "UInt64");
+impl_code_type_for_primitive!(UInt64CodeType, "uniffiCore.BigInt", "UInt64");
 impl_code_type_for_primitive!(Float32CodeType, "double", "Double32");
 impl_code_type_for_primitive!(Float64CodeType, "double", "Double64");
 
@@ -188,14 +188,14 @@ impl Renderable for UInt64CodeType {
             class FfiConverterUInt64 {
                 // Accept an int or BigInt in 0..2^64-1. Negative int bit patterns
                 // are reserved for the FFI boundary, never public inputs.
-                static BigInt normalize(uniffiCore.Object value) {
-                    final BigInt unsigned;
-                    if (value is BigInt) {
+                static uniffiCore.BigInt normalize(uniffiCore.Object value) {
+                    final uniffiCore.BigInt unsigned;
+                    if (value is uniffiCore.BigInt) {
                         unsigned = value;
                     } else if (value is int) {
-                        unsigned = BigInt.from(value);
+                        unsigned = uniffiCore.BigInt.from(value);
                     } else if (value is _UniffiU64Default) {
-                        unsigned = BigInt.parse(value.value);
+                        unsigned = uniffiCore.BigInt.parse(value.value);
                     } else {
                         throw ArgumentError.value(value, "value", "u64 requires int or BigInt");
                     }
@@ -205,9 +205,9 @@ impl Renderable for UInt64CodeType {
                     return unsigned;
                 }
 
-                static BigInt lift(int value) => BigInt.from(value).toUnsigned(64);
+                static uniffiCore.BigInt lift(int value) => uniffiCore.BigInt.from(value).toUnsigned(64);
 
-                static LiftRetVal<BigInt> read(Uint8List buf) {
+                static LiftRetVal<uniffiCore.BigInt> read(Uint8List buf) {
                     return LiftRetVal(lift(buf.buffer.asByteData(buf.offsetInBytes).getUint64(0)), 8);
                 }
 

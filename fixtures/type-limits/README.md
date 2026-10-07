@@ -29,3 +29,8 @@ unchanged smaller integer types, defaults, nullable values, nested lists/maps,
 record and enum construction, custom aliases, objects, synchronous and async
 callbacks, and invalid callback results. The standalone runner uses explicit
 checks, so AOT does not depend on assertions being enabled.
+
+The component also exports a record named `BigInt`. All cases run with that
+record present, so scalar and nested u64 types, defaults, aliases and callbacks
+must continue to refer to Dart's built-in `BigInt`. The record's own name and
+full-width u64 field must survive a native round trip.
