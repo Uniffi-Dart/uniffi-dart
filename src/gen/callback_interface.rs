@@ -619,7 +619,7 @@ fn foreign_future_field_annotation(field_type: &FfiType) -> Option<dart::Tokens>
         FfiType::Int32 => Some(quote!(@Int32())),
         FfiType::UInt32 => Some(quote!(@Uint32())),
         FfiType::Int64 => Some(quote!(@Int64())),
-        FfiType::UInt64 => Some(quote!(@Uint64())),
+        FfiType::UInt64 | FfiType::Handle => Some(quote!(@Uint64())),
         FfiType::Float32 => Some(quote!(@Float())),
         FfiType::Float64 => Some(quote!(@Double())),
         _ => None,
