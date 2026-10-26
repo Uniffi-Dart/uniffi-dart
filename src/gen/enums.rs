@@ -83,8 +83,10 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                 trait_methods.append(quote! {
                     $(if name == "toString" => @override)
                     String $name() {
-                        final buffer = rustCall((status) =>
-                            $ffi_name($ffi_converter_name.lower(this), status));
+                        final buffer = rustCall((status) => uniffiWithArguments((arguments) {
+                            final input = $ffi_converter_name.lower(this);
+                            return arguments.call(() => $ffi_name(input, status));
+                        }));
                         try {
                             return utf8.decoder.convert(buffer.asUint8List());
                         } finally {

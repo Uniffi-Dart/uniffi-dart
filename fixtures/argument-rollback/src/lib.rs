@@ -197,3 +197,10 @@ pub fn take_pure_callback(consumer: Box<dyn PureConsumer>, small: u8) -> u8 {
     consumer.ping();
     small
 }
+
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+#[uniffi::export(Display, Debug)]
+pub enum FormatError {
+    #[error("format context: {message}")]
+    Detail { message: String },
+}
