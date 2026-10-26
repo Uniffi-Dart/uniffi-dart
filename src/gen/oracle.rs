@@ -363,6 +363,13 @@ impl DartCodeOracle {
                     status.code = CALL_SUCCESS;
                 )
             }
+            Type::CallbackInterface { .. } => {
+                let lowered = ret_type.as_codetype().ffi_converter_name();
+                quote!(
+                    final result = obj.$method_name($(for arg in &args => $arg,));
+                    outReturn.value = $lowered.lower(result).address;
+                )
+            }
             Type::Object { .. } => {
                 let lowered = ret_type.as_codetype().ffi_converter_name();
                 quote!(
@@ -423,6 +430,9 @@ impl DartCodeOracle {
         // Use index-based variable names to avoid conflicts
         if let Type::Boolean = arg_type {
             quote!(final bool_arg$(arg_idx) = $arg_name == 1;)
+        } else if let Type::CallbackInterface { .. } = arg_type {
+            let converter = arg_type.as_codetype().ffi_converter_name();
+            quote!(final arg$(arg_idx) = $converter.lift(Pointer<Void>.fromAddress($arg_name));)
         } else if let Type::Bytes = arg_type {
             quote!(final arg$(arg_idx) = FfiConverterUint8List.lift($arg_name);)
         } else if let Type::String = arg_type {

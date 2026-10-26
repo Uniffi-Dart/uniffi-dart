@@ -72,3 +72,29 @@ pub async fn check_async_values(callback: Arc<dyn AsyncAbiValues>) -> bool {
 }
 
 uniffi::include_scaffolding!("api");
+
+#[uniffi::export(callback_interface)]
+pub trait LeafCallback: Send + Sync {
+    fn value(&self, input: u32) -> u32;
+}
+#[uniffi::export(callback_interface)]
+pub trait NestedCallback: Send + Sync {
+    fn get(&self) -> Box<dyn LeafCallback>;
+}
+#[uniffi::export]
+pub fn check_nested_callbacks(callback: Box<dyn NestedCallback>) -> bool {
+    callback.get().value(41) == 42
+}
+
+#[uniffi::export(with_foreign)]
+pub trait NestedForeignCallback: Send + Sync {
+    fn invoke(&self, leaf: Arc<dyn AbiValues>) -> bool;
+    fn get(&self) -> Arc<dyn AbiValues>;
+}
+#[uniffi::export]
+pub fn check_nested_foreign_callbacks(
+    callback: Arc<dyn NestedForeignCallback>,
+    leaf: Arc<dyn AbiValues>,
+) -> bool {
+    callback.invoke(leaf) && callback.get().count(Count(41)).0 == 42
+}
