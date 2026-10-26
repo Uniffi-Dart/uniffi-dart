@@ -201,3 +201,25 @@ pub fn callback_get_other_multiply(
 }
 
 uniffi::include_scaffolding!("api");
+
+#[uniffi::export(callback_interface)]
+pub trait CollidingCallbackNames: Send + Sync {
+    #[allow(clippy::too_many_arguments)]
+    fn sum(
+        &self,
+        a: i32,
+        arg0: i32,
+        out_return: i32,
+        uniffi_handle: i32,
+        obj: i32,
+        result: i32,
+        state: i32,
+        handle: i32,
+        callback: i32,
+    ) -> i32;
+}
+
+#[uniffi::export]
+pub fn check_callback_names(callback: Box<dyn CollidingCallbackNames>) -> i32 {
+    callback.sum(1, 2, 3, 4, 5, 6, 7, 8, 9)
+}

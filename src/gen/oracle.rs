@@ -518,40 +518,40 @@ impl DartCodeOracle {
     ) -> dart::Tokens {
         // Use index-based variable names to avoid conflicts
         if let Type::Boolean = arg_type {
-            quote!(final bool_arg$(arg_idx) = $arg_name == 1;)
+            quote!(final _uniffiBoolArg$(arg_idx) = $arg_name == 1;)
         } else if let Type::Enum { .. } = arg_type {
             let converter = arg_type.as_codetype().ffi_converter_name();
-            quote!(final arg$(arg_idx) = $converter.read(createUint8ListFromInt($arg_name)).value;)
+            quote!(final _uniffiArg$(arg_idx) = $converter.read(createUint8ListFromInt($arg_name)).value;)
         } else if let Type::Bytes = arg_type {
-            quote!(final arg$(arg_idx) = FfiConverterUint8List.lift($arg_name);)
+            quote!(final _uniffiArg$(arg_idx) = FfiConverterUint8List.lift($arg_name);)
         } else if let Type::String = arg_type {
-            quote!(final arg$(arg_idx) = FfiConverterString.lift($arg_name);)
+            quote!(final _uniffiArg$(arg_idx) = FfiConverterString.lift($arg_name);)
         } else if let Type::Optional { inner_type } = arg_type {
             if let Type::String = **inner_type {
-                quote!(final arg$(arg_idx) = FfiConverterOptionalString.lift($arg_name);)
+                quote!(final _uniffiArg$(arg_idx) = FfiConverterOptionalString.lift($arg_name);)
             } else {
                 let converter = arg_type.as_codetype().ffi_converter_name();
-                quote!(final arg$(arg_idx) = $converter.lift($arg_name);)
+                quote!(final _uniffiArg$(arg_idx) = $converter.lift($arg_name);)
             }
         } else if let Type::Sequence { inner_type } = arg_type {
             if let Type::Int32 = **inner_type {
-                quote!(final arg$(arg_idx) = FfiConverterSequenceInt32.lift($arg_name);)
+                quote!(final _uniffiArg$(arg_idx) = FfiConverterSequenceInt32.lift($arg_name);)
             } else {
                 let converter = arg_type.as_codetype().ffi_converter_name();
-                quote!(final arg$(arg_idx) = $converter.lift($arg_name);)
+                quote!(final _uniffiArg$(arg_idx) = $converter.lift($arg_name);)
             }
         } else {
             let converter = arg_type.as_codetype().ffi_converter_name();
-            quote!(final arg$(arg_idx) = $converter.lift($arg_name);)
+            quote!(final _uniffiArg$(arg_idx) = $converter.lift($arg_name);)
         }
     }
 
     // Method to get argument name for a callback method based on type and index
     pub fn callback_arg_name(arg_type: &Type, arg_idx: usize) -> dart::Tokens {
         if let Type::Boolean = arg_type {
-            quote!(bool_arg$(arg_idx))
+            quote!(_uniffiBoolArg$(arg_idx))
         } else {
-            quote!(arg$(arg_idx))
+            quote!(_uniffiArg$(arg_idx))
         }
     }
 

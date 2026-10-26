@@ -325,8 +325,9 @@ pub fn generate_callback_functions(
         let param_types: Vec<dart::Tokens> = m
             .arguments()
             .iter()
-            .map(|arg| {
-                let arg_name = DartCodeOracle::var_name(arg.name());
+            .enumerate()
+            .map(|(index, arg)| {
+                let arg_name = format!("_uniffiRaw{index}");
                 DartCodeOracle::callback_param_type(&arg.as_type(), &arg_name)
             })
             .collect();
@@ -337,15 +338,15 @@ pub fn generate_callback_functions(
             .iter()
             .enumerate()
             .map(|(arg_idx, arg)| {
-                let arg_name = DartCodeOracle::var_name(arg.name());
+                let arg_name = format!("_uniffiRaw{arg_idx}");
                 DartCodeOracle::callback_arg_lift_indexed(&arg.as_type(), &arg_name, arg_idx)
             })
             .collect();
 
         // The callback boundary owns every incoming serialized argument, including
         // those not reached if an earlier argument fails to lift.
-        let free_buffers = quote!($(for arg in m.arguments().iter().filter(|arg| matches!(FfiType::from(&arg.as_type()), FfiType::RustBuffer(_))) =>
-            uniffiFreeRustBuffer($(DartCodeOracle::var_name(arg.name())));
+        let free_buffers = quote!($(for (index, _) in m.arguments().iter().enumerate().filter(|(_, arg)| matches!(FfiType::from(&arg.as_type()), FfiType::RustBuffer(_))) =>
+            uniffiFreeRustBuffer($(format!("_uniffiRaw{index}")));
         ));
 
         // Prepare arg names for the method call using indexes
