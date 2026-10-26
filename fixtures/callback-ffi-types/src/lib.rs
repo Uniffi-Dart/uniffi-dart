@@ -87,14 +87,18 @@ pub fn check_nested_callbacks(callback: Box<dyn NestedCallback>) -> bool {
 }
 
 #[uniffi::export(with_foreign)]
+pub trait ForeignLeafCallback: Send + Sync {
+    fn value(&self, input: u32) -> u32;
+}
+#[uniffi::export(with_foreign)]
 pub trait NestedForeignCallback: Send + Sync {
-    fn invoke(&self, leaf: Arc<dyn AbiValues>) -> bool;
-    fn get(&self) -> Arc<dyn AbiValues>;
+    fn invoke(&self, leaf: Arc<dyn ForeignLeafCallback>) -> bool;
+    fn get(&self) -> Arc<dyn ForeignLeafCallback>;
 }
 #[uniffi::export]
 pub fn check_nested_foreign_callbacks(
     callback: Arc<dyn NestedForeignCallback>,
-    leaf: Arc<dyn AbiValues>,
+    leaf: Arc<dyn ForeignLeafCallback>,
 ) -> bool {
-    callback.invoke(leaf) && callback.get().count(Count(41)).0 == 42
+    callback.invoke(leaf) && callback.get().value(41) == 42
 }
