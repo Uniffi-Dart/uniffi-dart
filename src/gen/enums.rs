@@ -63,7 +63,20 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
     let has_display = is_error && !obj.is_flat() && traits.display_fmt.is_some();
     let mut trait_methods = quote!();
     if is_error && !obj.is_flat() {
-        for (name, method) in [("toString", traits.display_fmt), ("debugString", traits.debug_fmt)]
+        let field_names: std::collections::HashSet<_> = obj
+            .variants()
+            .iter()
+            .flat_map(|variant| variant.fields().iter())
+            .map(|field| DartCodeOracle::var_name(field.name()))
+            .collect();
+        let mut debug_name = "debugString".to_owned();
+        let mut suffix = 0;
+        while field_names.contains(&debug_name) {
+            suffix += 1;
+            debug_name = format!("debugString{suffix}");
+        }
+        for (name, method) in
+            [("toString", traits.display_fmt), (debug_name.as_str(), traits.debug_fmt)]
         {
             if let Some(method) = method {
                 let ffi_name = method.ffi_func().name();

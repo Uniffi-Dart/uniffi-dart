@@ -12,6 +12,12 @@ T thrown<T>(void Function() call) {
 }
 
 void main() {
+  test('debug helper avoids every exported field name', () {
+    final error = thrown<DebugFieldException>(failWithDebugFields);
+    expect((error as DetailDebugFieldException).debugString, 'first');
+    expect(error.debugString1, 'second');
+    expect(error.debugString2(), contains('debug_string: "first"'));
+  });
   test('return-only flat errors are not lifted back into Rust', () {
     final error = thrown<FlatLegacyException>(failWithFlatLegacy);
     expect(error, FlatLegacyException.missing);

@@ -100,3 +100,15 @@ pub enum FlatLegacyError {
 pub fn fail_with_flat_legacy() -> Result<(), FlatLegacyError> {
     Err(FlatLegacyError::Missing)
 }
+
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+#[uniffi::export(Debug)]
+pub enum DebugFieldError {
+    #[error("debug fields")]
+    Detail { debug_string: String, debug_string1: String },
+}
+
+#[uniffi::export]
+pub fn fail_with_debug_fields() -> Result<(), DebugFieldError> {
+    Err(DebugFieldError::Detail { debug_string: "first".into(), debug_string1: "second".into() })
+}
