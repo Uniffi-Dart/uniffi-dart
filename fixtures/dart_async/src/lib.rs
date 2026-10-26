@@ -431,6 +431,8 @@ pub trait AsyncParserMirror: Send + Sync {
 
 #[derive(thiserror::Error, uniffi::Error, Debug)]
 pub enum ParserError {
+    #[error("InvalidByte")]
+    InvalidByte { value: u8 },
     #[error("NotAnInt")]
     NotAnInt,
     #[error("UnexpectedError")]
@@ -510,3 +512,9 @@ pub async fn read_async_byte(source: Arc<dyn AsyncByteSource>) -> Result<u8, Par
 }
 
 uniffi::include_scaffolding!("api");
+
+#[uniffi::export(with_foreign)]
+#[async_trait::async_trait]
+pub trait AsyncInputSource: Send + Sync {
+    async fn value(&self, input: String) -> u8;
+}
