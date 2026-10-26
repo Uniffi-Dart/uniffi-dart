@@ -23,7 +23,30 @@ class Returning implements ReturningConsumer {
   }
 }
 
+class Pure implements PureConsumer {
+  int calls = 0;
+  @override
+  void ping() {
+    calls++;
+  }
+}
+
 void main() {
+  test('pure callback handles are owned despite their scalar wire type', () {
+    final before = pureCallbackHandlesForTest();
+    final callback = Pure();
+    for (var i = 0; i < 20; i++) {
+      expect(
+        () => takePureCallback(consumer: callback, small: 256),
+        throwsArgumentError,
+      );
+    }
+    expect(pureCallbackHandlesForTest(), before);
+    expect(callback.calls, 0);
+    expect(takePureCallback(consumer: callback, small: 7), 7);
+    expect(callback.calls, 1);
+    expect(pureCallbackHandlesForTest(), before);
+  });
   test('nested scopes restore their enclosing owner after failed cleanup', () {
     final before = Map.of(tracker.calloc.live);
     final original = ArgumentError('inner preparation');
@@ -102,6 +125,8 @@ void main() {
     Returning(),
   );
   returningConsumerFreeCallback(returningHandle.address);
+  final pureHandle = FfiConverterCallbackInterfacePureConsumer.lower(Pure());
+  pureConsumerFreeCallback(pureHandle.address);
   tracker.calloc.retainForProcessLifetime();
   tearDown(() {
     tracker.calloc.reset();

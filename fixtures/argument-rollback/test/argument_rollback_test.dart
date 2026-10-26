@@ -25,7 +25,7 @@ void main() {
             'class UniffiHandleMap<T> { int get testLength => _map.length;',
           );
         } else {
-          instrumented += '\nint callbackHandlesForTest() => FfiConverterCallbackInterfaceConsumer._handleMap.testLength;\n';
+          instrumented += '\nint callbackHandlesForTest() => FfiConverterCallbackInterfaceConsumer._handleMap.testLength;\nint pureCallbackHandlesForTest() => FfiConverterCallbackInterfacePureConsumer._handleMap.testLength;\n';
         }
         file.writeAsStringSync(instrumented);
       }
