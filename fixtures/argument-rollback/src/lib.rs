@@ -35,8 +35,14 @@ pub fn live_objects() -> u64 {
     LIVE_OBJECTS.load(Ordering::Relaxed) as u64
 }
 
-#[derive(uniffi::Object)]
+#[derive(uniffi::Object, Debug, PartialEq, Eq, Hash)]
+#[uniffi::export(Debug, Display, Eq, Hash)]
 pub struct Tracked;
+impl std::fmt::Display for Tracked {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Tracked")
+    }
+}
 impl Drop for Tracked {
     fn drop(&mut self) {
         LIVE_OBJECTS.fetch_sub(1, Ordering::Relaxed);
@@ -54,6 +60,12 @@ impl Tracked {
     #[uniffi::constructor]
     pub async fn create(payload: String, small: u8) -> Arc<Self> {
         Self::new(payload, small)
+    }
+    pub fn accept_void(&self, payload: String, small: u8) {
+        take_void(payload, small);
+    }
+    pub fn as_async_trait(self: Arc<Self>) -> Arc<dyn AsyncConsumer> {
+        self
     }
     pub fn accept_two(&self, first: String, second: String) -> u64 {
         (first.len() + second.len()) as u64
@@ -146,3 +158,32 @@ pub async fn reject_async(object: Arc<Tracked>, payload: String) -> Result<u64, 
 }
 
 uniffi::include_scaffolding!("api");
+
+#[uniffi::export]
+#[async_trait::async_trait]
+pub trait AsyncConsumer: Send + Sync {
+    async fn accept(&self, payload: String, small: u8) -> u64;
+}
+#[async_trait::async_trait]
+impl AsyncConsumer for Tracked {
+    async fn accept(&self, payload: String, small: u8) -> u64 {
+        take(payload, small)
+    }
+}
+
+impl From<uniffi::UnexpectedUniFFICallbackError> for Rejection {
+    fn from(_: uniffi::UnexpectedUniFFICallbackError) -> Self {
+        Self::Rejected
+    }
+}
+#[uniffi::export(with_foreign)]
+pub trait ReturningConsumer: Send + Sync {
+    fn value(&self, fail: bool) -> Result<String, Rejection>;
+}
+#[uniffi::export]
+pub fn check_returning_callback(callback: Arc<dyn ReturningConsumer>, fail: bool) -> bool {
+    match callback.value(fail) {
+        Ok(value) => !fail && value == "returned",
+        Err(_) => fail,
+    }
+}
