@@ -224,22 +224,8 @@ impl DartCodeOracle {
         } else {
             lowered.extend(arguments.iter().map(|arg| Self::lower_arg_with_callback_handling(arg)));
         }
-        let needs_ownership = receiver
-            || arguments.iter().any(|arg| {
-                !matches!(
-                    FfiType::from(arg.as_type()),
-                    FfiType::UInt8
-                        | FfiType::UInt16
-                        | FfiType::UInt32
-                        | FfiType::UInt64
-                        | FfiType::Int8
-                        | FfiType::Int16
-                        | FfiType::Int32
-                        | FfiType::Int64
-                        | FfiType::Float32
-                        | FfiType::Float64
-                )
-            });
+        let needs_ownership =
+            receiver || arguments.iter().any(|arg| Self::argument_owns_resources(&arg.as_type()));
         if !needs_ownership {
             return quote!(uniffiWithoutArgumentTracking(() => $ffi_name(
                 $(for expression in &lowered => $expression,)
@@ -259,6 +245,24 @@ impl DartCodeOracle {
                     $(if let Some(status) = &status => $status)
                 ));
             }$(if let Some(status) = &status => , $status))
+        }
+    }
+
+    fn argument_owns_resources(ty: &Type) -> bool {
+        match ty {
+            Type::Boolean
+            | Type::UInt8
+            | Type::UInt16
+            | Type::UInt32
+            | Type::UInt64
+            | Type::Int8
+            | Type::Int16
+            | Type::Int32
+            | Type::Int64
+            | Type::Float32
+            | Type::Float64 => false,
+            Type::Custom { builtin, .. } => Self::argument_owns_resources(builtin),
+            _ => true,
         }
     }
 
