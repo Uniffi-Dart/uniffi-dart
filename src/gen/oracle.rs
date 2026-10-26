@@ -384,7 +384,7 @@ impl DartCodeOracle {
     ) -> dart::Tokens {
         let result = super::unsigned::normalize(ret_type, quote!(result));
         match ret_type {
-            Type::Custom { builtin, .. } if super::unsigned::accepts_u64(builtin) => {
+            Type::Custom { builtin, .. } => {
                 Self::callback_return_handling(builtin, method_name, args)
             }
             Type::Boolean => {
@@ -471,9 +471,7 @@ impl DartCodeOracle {
     pub fn callback_out_return_type(ret_type: Option<&Type>) -> dart::Tokens {
         if let Some(ret) = ret_type {
             match ret {
-                Type::Custom { builtin, .. } if super::unsigned::accepts_u64(builtin) => {
-                    Self::callback_out_return_type(Some(builtin))
-                }
+                Type::Custom { builtin, .. } => Self::callback_out_return_type(Some(builtin)),
                 Type::UInt8 => quote!(Pointer<Uint8>),
                 Type::UInt16 => quote!(Pointer<Uint16>),
                 Type::UInt32 => quote!(Pointer<Uint32>),

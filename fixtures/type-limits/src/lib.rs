@@ -181,3 +181,19 @@ pub struct BigInt {
 pub fn echo_named_big_int(value: BigInt) -> BigInt {
     value
 }
+
+pub struct I32Alias(pub i32);
+uniffi::custom_newtype!(I32Alias, i32);
+pub struct FloatAlias(pub f64);
+uniffi::custom_newtype!(FloatAlias, f64);
+
+#[uniffi::export(with_foreign)]
+pub trait ScalarAliases: Send + Sync {
+    fn integer(&self, value: I32Alias) -> I32Alias;
+    fn floating(&self, value: FloatAlias) -> FloatAlias;
+}
+
+#[uniffi::export]
+pub fn check_scalar_aliases(callback: Arc<dyn ScalarAliases>) -> bool {
+    callback.integer(I32Alias(-42)).0 == -41 && callback.floating(FloatAlias(0.5)).0 == 0.75
+}
