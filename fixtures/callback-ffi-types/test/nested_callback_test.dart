@@ -12,7 +12,7 @@ class Nested implements NestedCallback {
   final Leaf leaf;
   Nested(this.leaf);
   @override
-  LeafCallback get() => leaf;
+  LeafCallback get_() => leaf;
 }
 
 class ForeignNested implements NestedForeignCallback {
@@ -25,7 +25,7 @@ class ForeignNested implements NestedForeignCallback {
   }
 
   @override
-  AbiValues get() => leaf;
+  AbiValues get_() => leaf;
 }
 
 void main() {
