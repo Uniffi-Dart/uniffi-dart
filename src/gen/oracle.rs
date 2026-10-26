@@ -224,6 +224,28 @@ impl DartCodeOracle {
         } else {
             lowered.extend(arguments.iter().map(|arg| Self::lower_arg_with_callback_handling(arg)));
         }
+        let needs_ownership = receiver
+            || arguments.iter().any(|arg| {
+                !matches!(
+                    FfiType::from(arg.as_type()),
+                    FfiType::UInt8
+                        | FfiType::UInt16
+                        | FfiType::UInt32
+                        | FfiType::UInt64
+                        | FfiType::Int8
+                        | FfiType::Int16
+                        | FfiType::Int32
+                        | FfiType::Int64
+                        | FfiType::Float32
+                        | FfiType::Float64
+                )
+            });
+        if !needs_ownership {
+            return quote!(uniffiWithoutArgumentTracking(() => $ffi_name(
+                $(for expression in &lowered => $expression,)
+                $(if let Some(status) = &status => $status)
+            )));
+        }
         let prepared: Vec<_> = lowered
             .into_iter()
             .enumerate()
@@ -236,7 +258,7 @@ impl DartCodeOracle {
                     $(for (name, _) in &prepared => $name,)
                     $(if let Some(status) = &status => $status)
                 ));
-            })
+            }$(if let Some(status) = &status => , $status))
         }
     }
 

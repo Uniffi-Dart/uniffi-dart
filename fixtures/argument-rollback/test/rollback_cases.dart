@@ -13,7 +13,84 @@ class ReentrantConsumer implements Consumer {
   }
 }
 
+class Returning implements ReturningConsumer {
+  @override
+  String value(bool fail) {
+    expect(UniffiArgumentScope.current, isNull);
+    expect(() => take(payload: 'nested', small: 256), throwsArgumentError);
+    if (fail) throw StateError('callback error');
+    return 'returned';
+  }
+}
+
 void main() {
+  test('nested scopes restore their enclosing owner after failed cleanup', () {
+    final before = Map.of(tracker.calloc.live);
+    final original = ArgumentError('inner preparation');
+    uniffiWithArguments<void>((outer) {
+      expect(
+        () => uniffiWithArguments<void>((inner) {
+          inner.own((_) => throw StateError('cleanup'));
+          throw original;
+        }),
+        throwsA(same(original)),
+      );
+      expect(UniffiArgumentScope.current, same(outer));
+    });
+    expect(UniffiArgumentScope.current, isNull);
+    expect(tracker.calloc.live, before);
+  });
+  test(
+    'void methods and async trait methods release receiver clones',
+    () async {
+      final object = Tracked(payload: '', small: 0);
+      final trait = object.asAsyncTrait();
+      try {
+        final refs = object.references();
+        final before = liveBytes();
+        expect(
+          () => object.acceptVoid(payload: 'payload', small: 256),
+          throwsArgumentError,
+        );
+        await expectLater(
+          trait.accept(payload: 'payload', small: 256),
+          throwsArgumentError,
+        );
+        expect(object.references(), refs);
+        expect(liveBytes(), before);
+      } finally {
+        trait.dispose();
+        object.dispose();
+      }
+    },
+  );
+  test('Eq Hash Display and Debug trait calls preserve receiver ownership', () {
+    final object = Tracked(payload: '', small: 0);
+    final other = Tracked(payload: '', small: 0);
+    try {
+      final refs = object.references();
+      expect(object == other, isTrue);
+      expect(object.hashCode, other.hashCode);
+      expect(object.toString(), 'Tracked');
+      expect(object.debugString(), 'Tracked');
+      expect(object.references(), refs);
+    } finally {
+      other.dispose();
+      object.dispose();
+    }
+  });
+  test(
+    'reentrant callbacks transfer owned returns and errors independently',
+    () {
+      final before = liveBytes();
+      expect(
+        checkReturningCallback(callback: Returning(), fail: false),
+        isTrue,
+      );
+      expect(checkReturningCallback(callback: Returning(), fail: true), isTrue);
+      expect(liveBytes(), before);
+    },
+  );
   ensureInitialized();
   // Rust retains the callback vtable for the process lifetime. Keep it out of
   // per-test scratch cleanup so subsequent callback calls remain valid.
@@ -21,6 +98,10 @@ void main() {
     ReentrantConsumer(),
   );
   consumerFreeCallback(initialHandle.address);
+  final returningHandle = FfiConverterCallbackInterfaceReturningConsumer.lower(
+    Returning(),
+  );
+  returningConsumerFreeCallback(returningHandle.address);
   tracker.calloc.retainForProcessLifetime();
   tearDown(() {
     tracker.calloc.reset();
@@ -161,8 +242,61 @@ void main() {
   });
 
   test('native callbacks can reenter without capturing their resources', () {
+    final before = liveBytes();
     expect(takeCallback(consumer: ReentrantConsumer(), small: 1), 3);
+    expect(liveBytes(), before);
   });
+
+  test(
+    'rollback preserves the original error and releases later resources',
+    () {
+      final previous = UniffiArgumentScope.current;
+      final released = <int>[];
+      final original = ArgumentError('preparation');
+      expect(
+        () => uniffiWithArguments<void>((scope) {
+          scope.own((_) {
+            released.add(1);
+          });
+          scope.own((_) {
+            released.add(2);
+            throw StateError('cleanup');
+          });
+          scope.own((_) {
+            released.add(3);
+            throw StateError('other cleanup');
+          });
+          throw original;
+        }),
+        throwsA(same(original)),
+      );
+      expect(released, [3, 2, 1]);
+      expect(UniffiArgumentScope.current, same(previous));
+    },
+  );
+
+  test(
+    'successful preparation surfaces first cleanup error after all releases',
+    () {
+      final released = <int>[];
+      final first = StateError('first cleanup');
+      expect(
+        () => uniffiWithArguments<void>((scope) {
+          scope.own((_) {
+            released.add(1);
+            throw StateError('last cleanup');
+          });
+          scope.own((_) {
+            released.add(2);
+            throw first;
+          });
+        }),
+        throwsA(same(first)),
+      );
+      expect(released, [2, 1]);
+      expect(UniffiArgumentScope.current, isNull);
+    },
+  );
 
   test('generated temporary names do not hide user arguments', () {
     expect(
@@ -190,7 +324,7 @@ void main() {
     );
     expect(liveBytes(), before);
   });
-  for (var failAt = 0; failAt < 10; failAt++) {
+  for (var failAt = 0; failAt < 9; failAt++) {
     test('rollback works while allocations keep failing at $failAt', () {
       final object = Tracked(payload: '', small: 0);
       try {
@@ -198,7 +332,7 @@ void main() {
         final before = liveBytes();
         tracker.calloc.failAfter = failAt;
         try {
-          if (failAt < 9) {
+          if (failAt < 8) {
             expect(
               () => object.acceptTwo(first: 'x' * 64, second: 'y' * 32),
               throwsStateError,

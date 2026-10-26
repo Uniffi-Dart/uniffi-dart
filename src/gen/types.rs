@@ -386,12 +386,27 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
 
             // Lowering is synchronous and isolate-local. Nested calls get a separate scope;
             // callbacks entered by Rust run with tracking suspended.
-            T uniffiWithArguments<T>(T Function(UniffiArgumentScope) prepare) {
+            T uniffiWithoutArgumentTracking<T>(T Function() invoke) {
                 final previous = UniffiArgumentScope.current;
-                final scope = UniffiArgumentScope();
+                UniffiArgumentScope.current = null;
+                try { return invoke(); }
+                finally { UniffiArgumentScope.current = previous; }
+            }
+
+            T uniffiWithArguments<T>(T Function(UniffiArgumentScope) prepare,
+                [Pointer<RustCallStatus>? status]) {
+                final previous = UniffiArgumentScope.current;
+                final scope = UniffiArgumentScope(status);
                 UniffiArgumentScope.current = scope;
                 try {
                     return prepare(scope);
+                } catch (_) {
+                    try {
+                        scope.close();
+                    } catch (_) {
+                        // Preserve the preparation failure after best-effort cleanup.
+                    }
+                    rethrow;
                 } finally {
                     UniffiArgumentScope.current = null;
                     try {
@@ -406,7 +421,11 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                 static UniffiArgumentScope? current;
                 // Reserve cleanup storage before acquiring any arguments. Rollback must
                 // still work if a later native allocation keeps failing.
-                final _status = calloc<RustCallStatus>();
+                final Pointer<RustCallStatus> _status;
+                final bool _ownsStatus;
+                UniffiArgumentScope([Pointer<RustCallStatus>? status])
+                    : _status = status ?? calloc<RustCallStatus>(),
+                      _ownsStatus = status == null;
                 final _owned = <void Function(Pointer<RustCallStatus>)>[];
 
                 void own(void Function(Pointer<RustCallStatus>) release) {
@@ -426,26 +445,34 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                     }
                 }
 
+                bool _closed = false;
+
                 void close() {
+                    if (_closed) return;
+                    _closed = true;
                     try {
                         _releaseRemaining();
                     } finally {
-                        calloc.free(_status);
+                        if (_ownsStatus) calloc.free(_status);
                     }
                 }
 
                 void _releaseRemaining() {
+                    Object? firstError;
+                    StackTrace? firstStack;
                     while (_owned.isNotEmpty) {
                         final release = _owned.removeLast();
                         try {
                             _status.ref.code = CALL_SUCCESS;
                             release(_status);
                             checkCallStatus(NullRustCallStatusErrorHandler(), _status);
-                        } catch (_) {
-                            // Finish releasing other arguments even if a destructor fails.
-                            _releaseRemaining();
-                            rethrow;
+                        } catch (error, stack) {
+                            firstError ??= error;
+                            firstStack ??= stack;
                         }
+                    }
+                    if (firstError != null) {
+                        Error.throwWithStackTrace(firstError, firstStack!);
                     }
                 }
             }
