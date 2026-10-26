@@ -12,7 +12,7 @@ class Factory extends AsyncObjectFactory {
 void main() {
   test('async foreign method returns a fixed-width object handle', () async {
     final original = await Megaphone.new_();
-    final returned = await makeUsingForeignFactory(factory: Factory(original));
+    final returned = await makeUsingForeignFactory(factory_: Factory(original));
     try {
       expect(
         await returned.sayAfter(ms: 0, who: 'handle'),
