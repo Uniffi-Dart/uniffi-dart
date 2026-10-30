@@ -193,6 +193,79 @@ impl DartCodeOracle {
     //     }
     // }
 
+    /// Lower arguments in a transaction, then suspend tracking while Rust owns them.
+    pub fn scoped_ffi_call(
+        ffi_name: &str,
+        arguments: &[&Argument],
+        receiver: bool,
+        status: Option<dart::Tokens>,
+        overrides: Option<&[dart::Tokens]>,
+    ) -> dart::Tokens {
+        let mut names: std::collections::HashSet<String> =
+            arguments.iter().map(|arg| Self::var_name(arg.name())).collect();
+        // The status variable belongs to the enclosing rustCall closure.
+        names.insert("status".into());
+        let mut unique = |base: &str| {
+            let mut name = base.to_owned();
+            let mut suffix = 0;
+            while !names.insert(name.clone()) {
+                suffix += 1;
+                name = format!("{base}{suffix}");
+            }
+            name
+        };
+        let scope = unique("uniffiArguments");
+        let mut lowered = Vec::new();
+        if receiver {
+            lowered.push(quote!(uniffiClonePointer()));
+        }
+        if let Some(expressions) = overrides {
+            lowered.extend_from_slice(expressions);
+        } else {
+            lowered.extend(arguments.iter().map(|arg| Self::lower_arg_with_callback_handling(arg)));
+        }
+        let needs_ownership =
+            receiver || arguments.iter().any(|arg| Self::argument_owns_resources(&arg.as_type()));
+        if !needs_ownership {
+            return quote!(uniffiWithoutArgumentTracking(() => $ffi_name(
+                $(for expression in &lowered => $expression,)
+                $(if let Some(status) = &status => $status)
+            )));
+        }
+        let prepared: Vec<_> = lowered
+            .into_iter()
+            .enumerate()
+            .map(|(i, expression)| (unique(&format!("uniffiArg{i}")), expression))
+            .collect();
+        quote! {
+            uniffiWithArguments(($(&scope)) {
+                $(for (name, expression) in &prepared => final $name = $expression;)
+                return $(&scope).call(() => $ffi_name(
+                    $(for (name, _) in &prepared => $name,)
+                    $(if let Some(status) = &status => $status)
+                ));
+            }$(if let Some(status) = &status => , $status))
+        }
+    }
+
+    fn argument_owns_resources(ty: &Type) -> bool {
+        match ty {
+            Type::Boolean
+            | Type::UInt8
+            | Type::UInt16
+            | Type::UInt32
+            | Type::UInt64
+            | Type::Int8
+            | Type::Int16
+            | Type::Int32
+            | Type::Int64
+            | Type::Float32
+            | Type::Float64 => false,
+            Type::Custom { builtin, .. } => Self::argument_owns_resources(builtin),
+            _ => true,
+        }
+    }
+
     pub fn type_lower_fn(ty: &Type, inner: dart::Tokens) -> dart::Tokens {
         match ty {
             Type::Int8
