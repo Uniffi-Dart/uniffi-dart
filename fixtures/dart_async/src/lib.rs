@@ -498,3 +498,23 @@ pub async fn mirror_delay_using_trait(obj: Arc<dyn AsyncParserMirror>, delay_ms:
 }
 
 uniffi::include_scaffolding!("api");
+
+#[uniffi::export(with_foreign)]
+#[async_trait::async_trait]
+pub trait AsyncNameCallback: Send + Sync {
+    #[allow(clippy::too_many_arguments)]
+    async fn sum(
+        &self,
+        state: i32,
+        handle: i32,
+        callback: i32,
+        obj: i32,
+        result: i32,
+        out_return: i32,
+        uniffi_handle: i32,
+    ) -> i32;
+}
+#[uniffi::export]
+pub async fn check_async_callback_names(callback: Arc<dyn AsyncNameCallback>) -> i32 {
+    callback.sum(1, 2, 3, 4, 5, 6, 7).await
+}

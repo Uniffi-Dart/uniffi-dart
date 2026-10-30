@@ -152,6 +152,7 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
             )})
         };
 
+        let call_status = &DartCodeOracle::call_status_name(&constructor.arguments());
         let ffi_call_args = quote!($(for arg in constructor.arguments() =>
             $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
         );
@@ -179,9 +180,9 @@ pub fn generate_object(obj: &Object, type_helper: &dyn TypeHelperRenderer) -> da
         } else {
             constructor_definitions.push(quote! {
                 // Public constructor
-                $dart_constructor_decl($dart_params) : _ptr = rustCall((status) =>
+                $dart_constructor_decl($dart_params) : _ptr = rustCall(($call_status) =>
                     $ffi_func_name(
-                        $ffi_call_args status
+                        $ffi_call_args $call_status
                     ),
                     $error_handler
                 ) {
@@ -376,6 +377,7 @@ fn generate_callback_trait_rust_method(
     method: &Method,
     type_helper: &dyn TypeHelperRenderer,
 ) -> dart::Tokens {
+    let call_status = &DartCodeOracle::call_status_name(&method.arguments());
     let method_name = DartCodeOracle::fn_name(method.name());
     let dart_args = method
         .arguments()
@@ -433,11 +435,11 @@ fn generate_callback_trait_rust_method(
         quote! {
             @override
             $ret $method_name($(for a in &dart_args => $a,)) {
-                return rustCall((status) {
+                return rustCall(($call_status) {
                     $(method.ffi_func().name())(
                         uniffiClonePointer(),
                         $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
-                        status
+                        $call_status
                     );
                 }, $error_handler);
             }
@@ -447,10 +449,10 @@ fn generate_callback_trait_rust_method(
             @override
             $ret $method_name($(for a in &dart_args => $a,)) {
                 return rustCallWithLifter(
-                    (status) => $(method.ffi_func().name())(
+                    ($call_status) => $(method.ffi_func().name())(
                         uniffiClonePointer(),
                         $(for arg in &method.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),)
-                        status
+                        $call_status
                     ),
                     $lifter,
                     $error_handler
@@ -462,6 +464,7 @@ fn generate_callback_trait_rust_method(
 
 #[allow(unused_variables)]
 pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
+    let call_status = &DartCodeOracle::call_status_name(&func.arguments());
     // if func.takes_self_by_arc() {} // TODO: Do something about this condition
     let args = if func.arguments().is_empty() {
         quote!()
@@ -522,10 +525,10 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
     } else if ret == quote!(void) {
         quote!(
             $ret $(DartCodeOracle::fn_name(func.name()))($args) {
-                return rustCall((status) {
+                return rustCall(($call_status) {
                     $(func.ffi_func().name())(
                         uniffiClonePointer(),
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
+                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) $call_status
                     );
                 }, $error_handler);
             }
@@ -534,9 +537,9 @@ pub fn generate_method(func: &Method, type_helper: &dyn TypeHelperRenderer) -> d
         quote!(
             $ret $(DartCodeOracle::fn_name(func.name()))($args) {
                 return rustCallWithLifter(
-                    (status) => $(func.ffi_func().name())(
+                    ($call_status) => $(func.ffi_func().name())(
                         uniffiClonePointer(),
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
+                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) $call_status
                     ),
                     $lifter,
                     $error_handler
