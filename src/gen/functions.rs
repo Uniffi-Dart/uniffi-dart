@@ -64,26 +64,30 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
                 );
             }
         )
-    } else if ret == quote!(void) {
-        quote!(
-            $ret $(DartCodeOracle::fn_name(func.name()))($args) {
-                return rustCall((status) {
-                    $(func.ffi_func().name())(
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
-                    );
-                }, $error_handler);
-            }
-        )
     } else {
+        let call = if ret == quote!(void) {
+            quote!(rustCall((status) {
+                $(func.ffi_func().name())(
+                    $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
+                );
+            }, $error_handler))
+        } else {
+            quote!(rustCallWithLifter(
+                (status) => $(func.ffi_func().name())(
+                    $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
+                ),
+                $lifter,
+                $error_handler
+            ))
+        };
+        let call = if type_helper.callback_dispatch() {
+            quote!(_uniffiDispatch.call(() => $call))
+        } else {
+            call
+        };
         quote!(
             $ret $(DartCodeOracle::fn_name(func.name()))($args) {
-                return rustCallWithLifter(
-                    (status) => $(func.ffi_func().name())(
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
-                    ),
-                    $lifter,
-                    $error_handler
-                );
+                return $call;
             }
         )
     }
