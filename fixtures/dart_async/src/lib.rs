@@ -498,3 +498,14 @@ pub async fn mirror_delay_using_trait(obj: Arc<dyn AsyncParserMirror>, delay_ms:
 }
 
 uniffi::include_scaffolding!("api");
+
+#[uniffi::export(with_foreign)]
+#[async_trait::async_trait]
+pub trait AsyncObjectFactory: Send + Sync {
+    async fn make(&self) -> Arc<Megaphone>;
+}
+
+#[uniffi::export]
+pub async fn make_using_foreign_factory(factory: Arc<dyn AsyncObjectFactory>) -> Arc<Megaphone> {
+    factory.make().await
+}

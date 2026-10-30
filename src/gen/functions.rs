@@ -38,18 +38,6 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
 
     // Use centralized callback-aware argument lowering
     if func.is_async() {
-        // For async methods returning objects, we need to convert the int pointer to Pointer<Void>
-        let async_lifter = if let Some(ret_type) = func.return_type() {
-            match ret_type {
-                uniffi_bindgen::interface::Type::Object { .. } => {
-                    quote!((ptr) => $lifter(Pointer<Void>.fromAddress(ptr)))
-                }
-                _ => lifter.clone(),
-            }
-        } else {
-            lifter.clone()
-        };
-
         quote!(
             Future<$ret> $(DartCodeOracle::fn_name(func.name()))($args) {
                 return uniffiRustCallAsync(
@@ -59,7 +47,7 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
                   $(DartCodeOracle::async_poll(func, type_helper.get_ci())),
                   $(DartCodeOracle::async_complete(func, type_helper.get_ci())),
                   $(DartCodeOracle::async_free(func, type_helper.get_ci())),
-                  $async_lifter,
+                  $lifter,
                   $error_handler,
                 );
             }

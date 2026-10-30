@@ -1,12 +1,20 @@
 namespace simple_iface {
   Object make_object(i32 inner);
+  Object map_object(ObjectMapper mapper, Object value);
+  [Async]
+  Object make_object_async(i32 inner);
   ProtocolError get_protocol_error(string message);
 };
 
 interface Object {
   i32 get_inner();
   Object? some_method();
+  [Throws=ProbeError]
+  void fail();
 };
+
+[Error]
+enum ProbeError { "Failed" };
 
 interface PayloadError {
   string message();
@@ -14,4 +22,8 @@ interface PayloadError {
 
 interface ProtocolError {
   PayloadError? payload_error();
+};
+
+callback interface ObjectMapper {
+  Object map(Object value);
 };
