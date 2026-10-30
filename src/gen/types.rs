@@ -414,14 +414,20 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
             RustBuffer toRustBuffer(Uint8List data) {
                 final length = data.length;
 
-                final Pointer<Uint8> frameData = calloc<Uint8>(length); // Allocate a pointer large enough.
-                final pointerList = frameData.asTypedList(length); // Create a list that uses our pointer and copy in the data.
-                pointerList.setAll(0, data); // FIXME: can we remove this memcopy somehow?
-
-                final bytes = calloc<ForeignBytes>();
-                bytes.ref.len = length;
-                bytes.ref.data = frameData;
-                return RustBuffer.fromBytes(bytes.ref);
+                final frameData = calloc<Uint8>(length);
+                try {
+                    frameData.asTypedList(length).setAll(0, data);
+                    final bytes = calloc<ForeignBytes>();
+                    try {
+                        bytes.ref.len = length;
+                        bytes.ref.data = frameData;
+                        return RustBuffer.fromBytes(bytes.ref);
+                    } finally {
+                        calloc.free(bytes);
+                    }
+                } finally {
+                    calloc.free(frameData);
+                }
             }
 
             final class ForeignBytes extends Struct {
