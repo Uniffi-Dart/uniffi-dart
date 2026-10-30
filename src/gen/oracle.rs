@@ -417,12 +417,7 @@ impl DartCodeOracle {
                 let ffi_converter = ret_type.as_codetype().ffi_converter_name();
                 quote!(
                     final result = obj.$method_name($(for arg in &args => $arg,));
-                    if (result == null) {
-                        outReturn.ref = toRustBuffer(Uint8List.fromList([0]));
-                    } else {
-                        final lowered = $ffi_converter.lower(result);
-                        outReturn.ref = toRustBuffer(lowered.asUint8List());
-                    }
+                    outReturn.ref = $ffi_converter.lower(result);
                 )
             }
             Type::String => {
