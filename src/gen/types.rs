@@ -178,6 +178,8 @@ impl Renderer<(FunctionDefinition, dart::Tokens)> for TypeHelpersRenderer<'_> {
         };
 
         let types_helper_code = quote! {
+            import "dart:core";
+            import "dart:core" as uniffiCore;
             import "dart:async";
             import "dart:convert";
             import "dart:ffi";
@@ -210,8 +212,8 @@ pub fn generate_type(ty: &Type) -> dart::Tokens {
         | Type::Int16
         | Type::Int64
         | Type::UInt16
-        | Type::Int32
-        | Type::UInt64 => quote!(int),
+        | Type::Int32 => quote!(int),
+        Type::UInt64 => quote!(uniffiCore.BigInt),
         Type::Float32 | Type::Float64 => quote!(double),
         Type::String => quote!(String),
         Type::Bytes => quote!(Uint8List),
@@ -256,6 +258,31 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
         import "dart:isolate";
         import "dart:typed_data";
         import "package:ffi/ffi.dart";
+
+        // Convert exactly to a native Dart int, or throw instead of clamping.
+        extension UniffiBigIntToInt on BigInt {
+            int toIntChecked() {
+                if (!isValidInt) {
+                    throw RangeError("BigInt does not fit in a Dart int: " + toString());
+                }
+                return toInt();
+            }
+        }
+
+        // Preserve entries when int and BigInt inputs normalize to the same key.
+        Map<K, V> uniffiNormalizeU64Map<IK, IV, K, V>(
+            Map<IK, IV> input, K Function(IK) normalizeKey, V Function(IV) normalizeValue,
+        ) {
+            final output = <K, V>{};
+            for (final entry in input.entries) {
+                final key = normalizeKey(entry.key);
+                if (output.containsKey(key)) {
+                    throw ArgumentError("Duplicate map key after u64 conversion: " + key.toString());
+                }
+                output[key] = normalizeValue(entry.value);
+            }
+            return output;
+        }
 
             class UniffiInternalError implements Exception {
                 static const int bufferOverflow = 0;

@@ -607,7 +607,9 @@ fn generate_trait_helpers(obj: &Object, type_helper: &dyn TypeHelperRenderer) ->
                 tokens.append(quote! {
                     @override
                     int get hashCode {
-                        return $call;
+                        // Rust Hash returns u64. Dart requires an int hashCode;
+                        // BigInt.hashCode preserves equality without narrowing.
+                        return ($call).hashCode;
                     }
                 });
                 generated_hash = true;

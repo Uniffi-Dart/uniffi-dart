@@ -118,10 +118,10 @@ void main() {
 
     test('hashmaps without prelude', () {
       final hashMap = makeHashmap(k: 1, v: 100);
-      expect(hashMap, isA<Map<int, int>>());
+      expect(hashMap, isA<Map<int, BigInt>>());
 
       final returned = returnHashmap(h: hashMap);
-      expect(returned[1], equals(100));
+      expect(returned[1], equals(BigInt.from(100)));
     });
 
     test('traits without prelude', () {

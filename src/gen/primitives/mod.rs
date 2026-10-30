@@ -106,6 +106,10 @@ where
             InterfaceRadix::Decimal => format!("{value}"),
             InterfaceRadix::Octal | InterfaceRadix::Hexadecimal => format!("{value:#x}"),
         }),
+        InterfaceLiteral::UInt(value, _, InterfaceType::UInt64) => {
+            // BigInt is not const, and upper-half decimal int literals do not compile.
+            Some(format!("const _UniffiU64Default('{value}')"))
+        }
         InterfaceLiteral::UInt(value, radix, _) => Some(match radix {
             InterfaceRadix::Decimal => format!("{value}"),
             InterfaceRadix::Octal | InterfaceRadix::Hexadecimal => format!("{value:#x}"),
@@ -146,7 +150,7 @@ impl_code_type_for_primitive!(Int64CodeType, "int", "Int64");
 impl_code_type_for_primitive!(UInt8CodeType, "int", "UInt8");
 impl_code_type_for_primitive!(UInt16CodeType, "int", "UInt16");
 impl_code_type_for_primitive!(UInt32CodeType, "int", "UInt32");
-impl_code_type_for_primitive!(UInt64CodeType, "int", "UInt64");
+impl_code_type_for_primitive!(UInt64CodeType, "uniffiCore.BigInt", "UInt64");
 impl_code_type_for_primitive!(Float32CodeType, "double", "Double32");
 impl_code_type_for_primitive!(Float64CodeType, "double", "Double64");
 
@@ -169,32 +173,46 @@ impl_renderable_for_primitive!(UInt32CodeType, "int", "UInt32", 4, 0, 4294967295
 impl_renderable_for_primitive!(Float32CodeType, "double", "Double32", 4);
 impl_renderable_for_primitive!(Float64CodeType, "double", "Double64", 8);
 
-// Keep u64 on the legacy int path for now; full upper-bound validation lands with BigInt support.
+// The public value is unsigned; the native Dart int carries the same 64 bits.
 impl Renderable for UInt64CodeType {
     fn render_type_helper(&self, _type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
-        let cl_name = &self.ffi_converter_name();
-        let type_signature = &self.type_label();
-
         quote! {
-            class $cl_name {
-                static $type_signature lift($type_signature value) => value;
+            class _UniffiU64Default {
+                final String value;
+                const _UniffiU64Default(this.value);
+            }
 
-                static LiftRetVal<$type_signature> read(Uint8List buf) {
-                    return LiftRetVal(buf.buffer.asByteData(buf.offsetInBytes).getUint64(0), 8);
-                }
-
-                static $type_signature lower($type_signature value) {
-                    if (value < 0) {
-                        throw ArgumentError("Value out of range for u64: " + value.toString());
+            class FfiConverterUInt64 {
+                // Accept an int or BigInt in 0..2^64-1. Negative int bit patterns
+                // are reserved for the FFI boundary, never public inputs.
+                static uniffiCore.BigInt normalize(uniffiCore.Object value) {
+                    final uniffiCore.BigInt unsigned;
+                    if (value is uniffiCore.BigInt) {
+                        unsigned = value;
+                    } else if (value is int) {
+                        unsigned = uniffiCore.BigInt.from(value);
+                    } else if (value is _UniffiU64Default) {
+                        unsigned = uniffiCore.BigInt.parse(value.value);
+                    } else {
+                        throw ArgumentError.value(value, "value", "u64 requires int or BigInt");
                     }
-                    return value;
+                    if (unsigned.isNegative || unsigned.bitLength > 64) {
+                        throw RangeError("Value out of range for u64: " + unsigned.toString());
+                    }
+                    return unsigned;
                 }
 
-                static int allocationSize([$type_signature value = 0]) {
-                    return 8;
+                static uniffiCore.BigInt lift(int value) => uniffiCore.BigInt.from(value).toUnsigned(64);
+
+                static LiftRetVal<uniffiCore.BigInt> read(Uint8List buf) {
+                    return LiftRetVal(lift(buf.buffer.asByteData(buf.offsetInBytes).getUint64(0)), 8);
                 }
 
-                static int write($type_signature value, Uint8List buf) {
+                static int lower(uniffiCore.Object value) => normalize(value).toSigned(64).toInt();
+
+                static int allocationSize([uniffiCore.Object value = 0]) => 8;
+
+                static int write(uniffiCore.Object value, Uint8List buf) {
                     buf.buffer.asByteData(buf.offsetInBytes).setUint64(0, lower(value));
                     return 8;
                 }

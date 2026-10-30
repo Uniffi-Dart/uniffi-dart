@@ -64,7 +64,7 @@ void main() {
       final two = Two(a: 'hello');
       expect(takeTwo(two: two), 'hello');
 
-      expect(makeHashmap(k: 1, v: 100), {1: 100});
+      expect(makeHashmap(k: 1, v: 100), {1: BigInt.from(100)});
 
       final obj = Object();
       expect(obj.isHeavy(), MaybeBool.uncertain);
