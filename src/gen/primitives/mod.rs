@@ -169,7 +169,10 @@ impl_renderable_for_primitive!(UInt32CodeType, "int", "UInt32", 4, 0, 4294967295
 impl_renderable_for_primitive!(Float32CodeType, "double", "Double32", 4);
 impl_renderable_for_primitive!(Float64CodeType, "double", "Double64", 8);
 
-// Keep u64 on the legacy int path for now; full upper-bound validation lands with BigInt support.
+// u64 travels as a Dart int, which is exactly 64 bits wide, so every int is a
+// valid u64 bit pattern and none is out of range. `read` already returns the
+// upper half as a negative int; rejecting the same value in `lower` would
+// make a u64 received from Rust impossible to send back.
 impl Renderable for UInt64CodeType {
     fn render_type_helper(&self, _type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
         let cl_name = &self.ffi_converter_name();
@@ -183,19 +186,14 @@ impl Renderable for UInt64CodeType {
                     return LiftRetVal(buf.buffer.asByteData(buf.offsetInBytes).getUint64(0), 8);
                 }
 
-                static $type_signature lower($type_signature value) {
-                    if (value < 0) {
-                        throw ArgumentError("Value out of range for u64: " + value.toString());
-                    }
-                    return value;
-                }
+                static $type_signature lower($type_signature value) => value;
 
                 static int allocationSize([$type_signature value = 0]) {
                     return 8;
                 }
 
                 static int write($type_signature value, Uint8List buf) {
-                    buf.buffer.asByteData(buf.offsetInBytes).setUint64(0, lower(value));
+                    buf.buffer.asByteData(buf.offsetInBytes).setUint64(0, value);
                     return 8;
                 }
             }
