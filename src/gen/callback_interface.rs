@@ -251,7 +251,7 @@ fn generate_callback_methods_signatures(callback_name: &str, methods: &[&Method]
         if method.is_async() {
             let completion_base = foreign_future_completion_name(method);
             let completion_native = format!("Uniffi{}", completion_base.to_upper_camel_case());
-            let completion_pointer = format!("Pointer<NativeFunction<{}>>", completion_native);
+            let completion_pointer = format!("Pointer<NativeFunction<{completion_native}>>");
 
             tokens.append(quote! {
                 typedef $ffi_method_type = Void Function(
@@ -355,7 +355,7 @@ pub fn generate_callback_functions(
         if m.is_async() {
             let completion_base = foreign_future_completion_name(m);
             let completion_native = format!("Uniffi{}", completion_base.to_upper_camel_case());
-            let completion_pointer = format!("Pointer<NativeFunction<{}>>", completion_native);
+            let completion_pointer = format!("Pointer<NativeFunction<{completion_native}>>");
             let completion_dart = format!("{completion_native}Dart");
             let result_struct = m.foreign_future_ffi_result_struct();
             let struct_tokens = DartCodeOracle::ffi_struct_name(result_struct.name());

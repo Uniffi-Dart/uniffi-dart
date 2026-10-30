@@ -56,7 +56,7 @@ nix develop .#nightly
 ```
 
 The default shell tracks the stable Rust toolchain. The `.#msrv` shell matches
-the declared Rust MSRV, currently 1.85.0.
+the declared Rust MSRV, currently 1.88.0.
 
 Run formatting through the flake:
 

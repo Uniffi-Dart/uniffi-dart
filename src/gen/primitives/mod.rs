@@ -13,9 +13,6 @@ use uniffi_bindgen::interface::{
     DefaultValue as InterfaceDefaultValue, Literal as InterfaceLiteral, Radix as InterfaceRadix,
     Type as InterfaceType,
 };
-use uniffi_bindgen::pipeline::general::nodes::{
-    Literal as PipelineLiteral, Radix as PipelineRadix, Type as PipelineType, TypeNode,
-};
 
 use crate::gen::render::{Renderable, TypeHelperRenderer};
 use crate::gen::CodeType;
@@ -29,43 +26,44 @@ pub(crate) fn escape_dart_string(value: &str) -> String {
         .replace('\t', "\\t")
 }
 
-fn render_literal(literal: &PipelineLiteral) -> String {
-    fn typed_number(type_node: &TypeNode, num_str: String) -> String {
-        match &type_node.ty {
-            PipelineType::Int8
-            | PipelineType::UInt8
-            | PipelineType::Int16
-            | PipelineType::UInt16
-            | PipelineType::Int32
-            | PipelineType::UInt32
-            | PipelineType::UInt64
-            | PipelineType::Float32
-            | PipelineType::Float64
-            | PipelineType::Duration => num_str,
+fn render_literal(literal: &InterfaceLiteral) -> String {
+    fn typed_number(ty: &InterfaceType, num_str: String) -> String {
+        match ty {
+            InterfaceType::Int8
+            | InterfaceType::UInt8
+            | InterfaceType::Int16
+            | InterfaceType::UInt16
+            | InterfaceType::Int32
+            | InterfaceType::UInt32
+            | InterfaceType::Int64
+            | InterfaceType::UInt64
+            | InterfaceType::Float32
+            | InterfaceType::Float64
+            | InterfaceType::Duration => num_str,
             _ => panic!("Unexpected literal: {num_str} is not a number"),
         }
     }
 
     match literal {
-        PipelineLiteral::Boolean(v) => format!("{v}"),
-        PipelineLiteral::String(s) => format!("'{}'", escape_dart_string(s)),
-        PipelineLiteral::Int(i, radix, type_node) => typed_number(
-            type_node,
+        InterfaceLiteral::Boolean(v) => format!("{v}"),
+        InterfaceLiteral::String(s) => format!("'{}'", escape_dart_string(s)),
+        InterfaceLiteral::Int(i, radix, ty) => typed_number(
+            ty,
             match radix {
-                PipelineRadix::Octal => format!("{i:#x}"),
-                PipelineRadix::Decimal => format!("{i}"),
-                PipelineRadix::Hexadecimal => format!("{i:#x}"),
+                InterfaceRadix::Octal => format!("{i:#x}"),
+                InterfaceRadix::Decimal => format!("{i}"),
+                InterfaceRadix::Hexadecimal => format!("{i:#x}"),
             },
         ),
-        PipelineLiteral::UInt(i, radix, type_node) => typed_number(
-            type_node,
+        InterfaceLiteral::UInt(i, radix, ty) => typed_number(
+            ty,
             match radix {
-                PipelineRadix::Octal => format!("{i:#x}"),
-                PipelineRadix::Decimal => format!("{i}"),
-                PipelineRadix::Hexadecimal => format!("{i:#x}"),
+                InterfaceRadix::Octal => format!("{i:#x}"),
+                InterfaceRadix::Decimal => format!("{i}"),
+                InterfaceRadix::Hexadecimal => format!("{i:#x}"),
             },
         ),
-        PipelineLiteral::Float(string, type_node) => typed_number(type_node, string.clone()),
+        InterfaceLiteral::Float(string, ty) => typed_number(ty, string.clone()),
         _ => unreachable!("Literal"),
     }
 }
@@ -115,6 +113,11 @@ where
             .or_else(|| enum_variant_renderer(field_type, variant)),
         InterfaceLiteral::EmptySequence => Some("const []".to_string()),
         InterfaceLiteral::EmptyMap => Some("const {}".to_string()),
+        // `Set<T>` types are not yet rendered by this generator (every Set path
+        // is a `todo!`), so there is no Set-typed position for `const {}` to land
+        // in — it would emit an empty Map. Degrade to no-default (→ required),
+        // mirroring `default_for_interface_type`, until real Set support exists.
+        InterfaceLiteral::EmptySet => None,
         InterfaceLiteral::None => Some("null".to_string()),
         InterfaceLiteral::Some { inner } => {
             render_interface_default_value(inner, field_type, enum_variant_renderer)
