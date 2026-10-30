@@ -13,4 +13,29 @@ pub struct Contact {
     pub nickname: Option<String>,
 }
 
+pub struct UdlStringDefaults {
+    pub identifier: String,
+    pub braced: String,
+}
+
+#[derive(uniffi::Record)]
+pub struct StringDefaults {
+    #[uniffi(default = "$amount")]
+    pub identifier: String,
+    #[uniffi(default = "${amount}")]
+    pub braced: String,
+    #[uniffi(default = "'\\$amount")]
+    pub escaped: String,
+}
+
+#[uniffi::export]
+pub fn echo_string_defaults(value: StringDefaults) -> StringDefaults {
+    value
+}
+
 uniffi::include_scaffolding!("api");
+
+#[uniffi::export(default(value = "$amount"))]
+pub fn echo_default_argument(value: String) -> String {
+    value
+}

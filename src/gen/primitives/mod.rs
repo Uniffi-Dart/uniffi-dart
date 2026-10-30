@@ -23,6 +23,7 @@ use crate::gen::CodeType;
 pub(crate) fn escape_dart_string(value: &str) -> String {
     value
         .replace('\\', "\\\\")
+        .replace('$', "\\$")
         .replace('\'', "\\'")
         .replace('\n', "\\n")
         .replace('\r', "\\r")

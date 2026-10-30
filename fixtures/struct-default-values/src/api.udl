@@ -15,3 +15,8 @@ dictionary Contact {
     i32 age;
     string? nickname;
 };
+
+dictionary UdlStringDefaults {
+    string identifier = "$amount";
+    string braced = "${amount}";
+};
