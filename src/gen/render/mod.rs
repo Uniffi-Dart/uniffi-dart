@@ -52,8 +52,8 @@ pub trait Renderable {
             Type::Record { name, .. } => quote!($(DartCodeOracle::class_name(name))),
             Type::Custom { name, .. } => quote!($(DartCodeOracle::class_name(name))),
             Type::Duration => quote!(Duration),
+            Type::Timestamp => quote!(DateTime),
             Type::CallbackInterface { name, .. } => quote!($(DartCodeOracle::class_name(name))),
-            _ => todo!("Type::{:?}", ty),
         };
 
         type_helper.include_once_check(&ty.as_codetype().canonical_name(), ty);
@@ -84,6 +84,7 @@ impl<T: AsType> AsRenderable for T {
             Type::Boolean => Box::new(primitives::BooleanCodeType),
             Type::String => Box::new(primitives::StringCodeType),
             Type::Duration => Box::new(primitives::DurationCodeType),
+            Type::Timestamp => Box::new(primitives::TimestampCodeType),
             Type::Bytes => Box::new(primitives::BytesCodeType),
             Type::Object { name, imp, .. } => Box::new(objects::ObjectCodeType::new(name, imp)),
             Type::Optional { inner_type } => {
@@ -103,7 +104,6 @@ impl<T: AsType> AsRenderable for T {
             Type::CallbackInterface { name, .. } => {
                 Box::new(callback_interface::CallbackInterfaceCodeType::new(name, self.as_type()))
             }
-            _ => todo!("Renderable for Type::{:?}", self.as_type()),
         }
     }
 }

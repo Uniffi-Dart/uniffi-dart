@@ -3,12 +3,14 @@ mod macros;
 mod boolean;
 mod duration;
 mod string;
+mod timestamp;
 
 pub use boolean::BooleanCodeType;
 pub use duration::DurationCodeType;
 use genco::prelude::*;
 use paste::paste;
 pub use string::StringCodeType;
+pub use timestamp::TimestampCodeType;
 use uniffi_bindgen::interface::{
     DefaultValue as InterfaceDefaultValue, Literal as InterfaceLiteral, Radix as InterfaceRadix,
     Type as InterfaceType,
