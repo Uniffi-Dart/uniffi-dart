@@ -32,6 +32,8 @@ pub enum SimpleError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ComplexError {
+    #[error("InvalidByte")]
+    InvalidByte { value: u8 },
     #[error("ReallyBadArgument")]
     ReallyBadArgument { code: i32 },
     #[error("InternalTelephoneError")]

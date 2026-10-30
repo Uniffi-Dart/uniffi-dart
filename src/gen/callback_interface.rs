@@ -367,7 +367,7 @@ pub fn generate_callback_functions(
 
             let success_return = if let Some(ret) = m.return_type() {
                 let converter = ret.as_codetype().ffi_converter_name();
-                quote!(resultStructPtr.ref.returnValue = $(&converter).lower(result);)
+                quote!(resultStruct.returnValue = $(&converter).lower(result);)
             } else {
                 quote!()
             };
@@ -375,7 +375,7 @@ pub fn generate_callback_functions(
             let async_error_handling = callback_error_handling(
                 m.throws_type(),
                 type_helper,
-                quote!(resultStructPtr.ref.callStatus),
+                quote!(resultStruct.callStatus),
             );
 
             quote! {
@@ -386,8 +386,6 @@ pub fn generate_callback_functions(
                     int uniffiCallbackData,
                     Pointer<UniffiForeignFuture> outReturn,
                 ) {
-                    final obj = FfiConverterCallbackInterface$cls_name._handleMap.get(uniffiHandle);
-                    $(arg_lifts)
                     final callback = uniffiFutureCallback.asFunction<$(&completion_dart)>();
                     final state = UniffiForeignFutureState();
                     final handle = uniffiForeignFutureHandleMap.insert(state);
@@ -395,36 +393,42 @@ pub fn generate_callback_functions(
                     outReturn.ref.free = uniffiForeignFutureFreePointer;
 
                     () async {
+                        var completed = false;
                         try {
+                            // The handle lookup and argument lifts run inside
+                            // the guarded body: a stale handle or a failing
+                            // lift must still complete the native future.
+                            final obj = FfiConverterCallbackInterface$cls_name._handleMap.get(uniffiHandle);
+                            $(arg_lifts)
                             final result = await obj.$method_name($(for arg in &arg_names => $arg,));
-                            final removedState = uniffiForeignFutureHandleMap.maybeRemove(handle);
-                            final effectiveState = removedState ?? state;
-                            if (effectiveState.cancelled) {
+                            if (completed) {
                                 return;
                             }
-                            effectiveState.cancelled = true;
-                            final resultStructPtr = calloc<$struct_tokens>();
-                            try {
+                            final resultStruct = Struct.create<$struct_tokens>();
+                            {
                                 $success_return
-                                resultStructPtr.ref.callStatus.code = CALL_SUCCESS;
-                                callback(uniffiCallbackData, resultStructPtr.ref);
-                            } finally {
-                                calloc.free(resultStructPtr);
+                                resultStruct.callStatus.code = CALL_SUCCESS;
+                                // Conversion can throw. Claim completion only once the
+                                // result/status is ready to transfer to Rust.
+                                completed = true;
+                                uniffiForeignFutureHandleMap.maybeRemove(handle);
+                                callback(uniffiCallbackData, resultStruct);
                             }
                         } catch (e) {
-                            final removedState = uniffiForeignFutureHandleMap.maybeRemove(handle);
-                            final effectiveState = removedState ?? state;
-                            if (effectiveState.cancelled) {
+                            if (completed) {
                                 return;
                             }
-                            effectiveState.cancelled = true;
-                            final resultStructPtr = calloc<$struct_tokens_alt>();
-                            try {
+                            final resultStruct = Struct.create<$struct_tokens_alt>();
+                            {
                                 $async_error_handling
-                                callback(uniffiCallbackData, resultStructPtr.ref);
-                            } finally {
-                                calloc.free(resultStructPtr);
+                                // Conversion can throw. Claim completion only once the
+                                // result/status is ready to transfer to Rust.
+                                completed = true;
+                                uniffiForeignFutureHandleMap.maybeRemove(handle);
+                                callback(uniffiCallbackData, resultStruct);
                             }
+                        } finally {
+                            uniffiForeignFutureHandleMap.maybeRemove(handle);
                         }
                     }();
                 }
@@ -509,22 +513,33 @@ fn callback_error_handling(
     type_helper: &dyn TypeHelperRenderer,
     status: dart::Tokens,
 ) -> dart::Tokens {
-    if let Some(error_type) = throws_type {
+    let encode = if let Some(error_type) = throws_type {
         let error_type_label = error_type.as_renderable().render_type(error_type, type_helper);
         let error_lower = error_type.as_codetype().ffi_converter_name();
         quote! {
             if (e is $error_type_label) {
+                final buffer = $error_lower.lower(e);
+                $(&status).errorBuf = buffer;
                 $(&status).code = CALL_ERROR;
-                $(&status).errorBuf = $error_lower.lower(e);
             } else {
-                $(&status).code = CALL_UNEXPECTED_ERROR;
                 $(&status).errorBuf = FfiConverterString.lower(e.toString());
             }
         }
     } else {
-        quote! {
+        quote!($(&status).errorBuf = FfiConverterString.lower(e.toString());)
+    };
+    quote! {
+        $(&status).code = CALL_UNEXPECTED_ERROR;
+        try {
+            $encode
+        } catch (_) {
             $(&status).code = CALL_UNEXPECTED_ERROR;
-            $(&status).errorBuf = FfiConverterString.lower(e.toString());
+            try {
+                $(&status).errorBuf = FfiConverterString.lower(
+                    "uniffi: callback error could not be encoded");
+            } catch (_) {
+                $(&status).errorBuf = Struct.create<RustBuffer>();
+            }
         }
     }
 }
