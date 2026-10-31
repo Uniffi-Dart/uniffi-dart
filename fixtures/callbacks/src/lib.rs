@@ -156,6 +156,20 @@ pub struct InMemoryEventPersister {
     events: Mutex<Vec<String>>,
 }
 
+static PERSISTER_DROP_COUNT: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+impl Drop for InMemoryEventPersister {
+    fn drop(&mut self) {
+        PERSISTER_DROP_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[uniffi::export]
+pub fn persister_drop_count() -> u64 {
+    PERSISTER_DROP_COUNT.load(std::sync::atomic::Ordering::SeqCst) as u64
+}
+
 #[uniffi::export]
 impl InMemoryEventPersister {
     #[uniffi::constructor]
@@ -190,3 +204,25 @@ pub fn save_and_load_persister(
 }
 
 uniffi::include_scaffolding!("api");
+
+#[uniffi::export(callback_interface)]
+pub trait DisposalObserver: Send + Sync {
+    fn dropping(&self);
+}
+
+#[derive(uniffi::Object)]
+pub struct ReentrantDisposable {
+    observer: Box<dyn DisposalObserver>,
+}
+#[uniffi::export]
+impl ReentrantDisposable {
+    #[uniffi::constructor]
+    pub fn new(observer: Box<dyn DisposalObserver>) -> Arc<Self> {
+        Arc::new(Self { observer })
+    }
+}
+impl Drop for ReentrantDisposable {
+    fn drop(&mut self) {
+        self.observer.dropping();
+    }
+}
