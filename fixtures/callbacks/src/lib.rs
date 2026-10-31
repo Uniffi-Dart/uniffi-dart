@@ -1,7 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use uniffi;
-
 pub struct Item {
     pub name: String,
     pub value: u64,
@@ -125,6 +123,8 @@ impl Default for RustGetters {
 #[allow(clippy::wrong_self_convention)]
 trait StoredForeignStringifier: Send + Sync + std::fmt::Debug {
     fn from_simple_type(&self, value: i32) -> String;
+    // Kept to exercise generation of nested optional callback argument types.
+    #[allow(dead_code)]
     fn from_complex_type(&self, values: Option<Vec<Option<f64>>>) -> String;
 }
 

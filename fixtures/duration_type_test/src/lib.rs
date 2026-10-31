@@ -1,7 +1,5 @@
 use core::time::Duration;
 
-use uniffi;
-
 #[uniffi::export]
 pub fn make_duration(seconds: u64, nanos: u32) -> Duration {
     Duration::new(seconds, nanos)

@@ -1,6 +1,3 @@
-use thiserror;
-use uniffi;
-
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum MathError {
     #[error("Division by zero")]
@@ -81,11 +78,7 @@ pub fn add_f64(left: f64, right: f64) -> Option<f64> {
 
 #[uniffi::export]
 pub fn divide_by_zero(numerator: u64, denominator: u64) -> Result<u64, MathError> {
-    if denominator == 0 {
-        Err(MathError::DivisionByZero)
-    } else {
-        Ok(numerator / denominator)
-    }
+    numerator.checked_div(denominator).ok_or(MathError::DivisionByZero)
 }
 
 macro_rules! get_back {
