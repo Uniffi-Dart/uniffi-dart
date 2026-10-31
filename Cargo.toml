@@ -73,6 +73,7 @@ members = [
     "fixtures/hello_world",
     "fixtures/input-scratch",
     "fixtures/metadata",
+    "fixtures/incoming-buffers",
     "fixtures/simple-iface",
     "fixtures/streams_ext",
     "fixtures/simple-fns",
