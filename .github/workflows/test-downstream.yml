@@ -36,10 +36,27 @@ jobs:
 
       - name: Patch uniffi-dart dependency
         run: |
-          cat >> rust-payjoin/Cargo.toml << 'EOF'
+          # The Dart native hook builds a separate Cargo workspace through this overlay.
+          for manifest in rust-payjoin/Cargo.toml rust-payjoin/payjoin-ffi/dart/.cargo/config.local.toml; do
+            cat >> "$manifest" << EOF
 
           [patch.'https://github.com/Uniffi-Dart/uniffi-dart.git']
-          uniffi-dart = { path = "../main" }
+          uniffi-dart = { path = "$GITHUB_WORKSPACE/main" }
+          EOF
+          done
+
+      - name: Use stable Rust for the Dart native hook
+        run: |
+          # The downstream hook otherwise selects Rust 1.85.1, which cannot build
+          # its newly resolved dependencies. Match the toolchain installed above.
+          # native_toolchain_rust requires an exact release and an explicit target.
+          rust_version=$(rustc +stable --version | cut -d ' ' -f 2)
+          rust_target=$(rustc +stable -vV | sed -n 's/^host: //p')
+          cat > rust-payjoin/payjoin-ffi/dart/native/rust-toolchain.toml << EOF
+          [toolchain]
+          channel = "$rust_version"
+          profile = "minimal"
+          targets = ["$rust_target"]
           EOF
 
       - name: Generate dart bindings and run tests
