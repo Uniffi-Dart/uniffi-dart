@@ -20,6 +20,7 @@ enum SimpleError {
 
 [Error]
 interface ComplexError {
+   InvalidByte(u8 value);
    ReallyBadArgument(i32 code);
    UnexpectedErrorWithReason(string reason);
 };
