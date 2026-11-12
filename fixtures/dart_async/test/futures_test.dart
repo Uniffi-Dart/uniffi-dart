@@ -371,11 +371,11 @@ void main() {
     expect(items.length, 2);
 
     final firstState = items[0].state as ReadyAsyncItemState;
-    expect(items[0].id, 1);
-    expect(firstState.timestampMs, 1111);
+    expect(items[0].id, BigInt.one);
+    expect(firstState.timestampMs, BigInt.from(1111));
 
     final secondState = items[1].state as PendingAsyncItemState;
-    expect(items[1].id, 2);
+    expect(items[1].id, BigInt.two);
     expect(secondState.reason, 'syncing');
   });
 

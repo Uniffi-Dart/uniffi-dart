@@ -13,6 +13,12 @@ Add uniffi-dart as a dependency in your `Cargo.toml`:
 uniffi-dart = "0.2.1+v0.31.2"
 ```
 
+## Unsigned 64-bit values
+
+`u64` inputs accept `int` or `BigInt`; results and stored fields use `BigInt`.
+Use `toIntChecked()` when a native `int` is needed. See the
+[u64 API and migration notes](docs/u64.md) for limits, collections, and callbacks.
+
 ## Testing & Fixtures
 
 uniffi-dart includes a **comprehensive test suite** with 30 fixtures covering all major UniFFI functionality:

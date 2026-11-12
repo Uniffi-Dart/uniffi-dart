@@ -28,6 +28,7 @@ mod records;
 mod render;
 pub mod stream;
 mod types;
+mod unsigned;
 
 pub use code_type::CodeType;
 
