@@ -22,6 +22,9 @@ pub(crate) fn render_default_value(default_value: &DefaultValue, ty: &Type) -> O
 
 pub(crate) fn render_argument_param(arg: &Argument, type_tokens: dart::Tokens) -> dart::Tokens {
     let name = DartCodeOracle::var_name(arg.name());
+    // Callers pass `render_type(..)` so the converter is still registered. For
+    // arguments that accept flexible u64 input only the annotation is widened,
+    // so those tokens are deliberately replaced here.
     let type_tokens = if super::unsigned::accepts_u64(&arg.as_type()) {
         super::unsigned::input_type(&arg.as_type())
     } else {

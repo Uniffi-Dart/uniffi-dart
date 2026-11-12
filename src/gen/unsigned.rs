@@ -53,3 +53,46 @@ pub(crate) fn normalize(ty: &Type, value: dart::Tokens) -> dart::Tokens {
         _ => unreachable!(),
     }
 }
+
+/// `lower` and `write` validate a bare u64 themselves, so they stay safe entry
+/// points for nested converters. Only containers need the walk first, because
+/// their converters are typed on the stored `BigInt` form.
+pub(crate) fn normalize_for_lower(ty: &Type, value: dart::Tokens) -> dart::Tokens {
+    if matches!(ty, Type::UInt64) {
+        value
+    } else {
+        normalize(ty, value)
+    }
+}
+
+/// How a record or enum-variant constructor accepts one field. A field that
+/// takes flexible u64 input cannot be an initializing formal (`this.name`),
+/// since the parameter is wider than the stored field: it becomes a plain
+/// parameter plus an initializer that stores the normalized value. The caller
+/// decides `required` and defaults once, for both kinds of field.
+pub(crate) fn constructor_field(
+    ty: &Type,
+    name: &str,
+    initializing_formal: dart::Tokens,
+) -> (dart::Tokens, Option<dart::Tokens>) {
+    if !accepts_u64(ty) {
+        return (initializing_formal, None);
+    }
+    let value = normalize(ty, quote!($name));
+    (quote!($(input_type(ty)) $name), Some(quote!($name = $value)))
+}
+
+/// Render collected initializers as `: a = ..., b = ...`, or nothing.
+pub(crate) fn initializer_list(initializers: &[dart::Tokens]) -> dart::Tokens {
+    if initializers.is_empty() {
+        return quote!();
+    }
+    let mut values = dart::Tokens::new();
+    for (i, init) in initializers.iter().enumerate() {
+        if i != 0 {
+            values.append(quote!(,));
+        }
+        values.append(init.clone());
+    }
+    quote!(: $values)
+}

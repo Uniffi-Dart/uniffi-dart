@@ -383,14 +383,12 @@ pub fn generate_callback_functions(
                 type_helper.include_once_check(&ret.as_codetype().canonical_name(), ret);
             }
 
-            // Validate flexible u64 results while the future can still report errors.
-            let normalize_result = if let Some(ret) = m.return_type().filter(|t| super::unsigned::accepts_u64(t)) {
-                let value = super::unsigned::normalize(ret, quote!(result));
-                quote!(final normalizedResult = $value;)
-            } else { quote!() };
+            // Flexible u64 results are validated by this lowering. It runs before
+            // completion is claimed, so a rejected value reaches the catch below
+            // and the future still completes with an error.
             let success_return = if let Some(ret) = m.return_type() {
                 let converter = ret.as_codetype().ffi_converter_name();
-                let value = if super::unsigned::accepts_u64(ret) { quote!(normalizedResult) } else { quote!(result) };
+                let value = super::unsigned::normalize_for_lower(ret, quote!(result));
                 quote!(resultStruct.returnValue = $(&converter).lower($value);)
             } else {
                 quote!()
@@ -426,7 +424,6 @@ pub fn generate_callback_functions(
                             final obj = FfiConverterCallbackInterface$cls_name._handleMap.get(uniffiHandle);
                             $(arg_lifts)
                             final result = await obj.$method_name($(for arg in &arg_names => $arg,));
-                            $normalize_result
                             if (completed) {
                                 return;
                             }

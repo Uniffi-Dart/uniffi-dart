@@ -194,7 +194,7 @@ impl DartCodeOracle {
     // }
 
     pub fn type_lower_fn(ty: &Type, inner: dart::Tokens) -> dart::Tokens {
-        let inner = super::unsigned::normalize(ty, inner);
+        let inner = super::unsigned::normalize_for_lower(ty, inner);
         match ty {
             Type::Int8
             | Type::Int16
@@ -382,7 +382,7 @@ impl DartCodeOracle {
         method_name: &str,
         args: Vec<dart::Tokens>,
     ) -> dart::Tokens {
-        let result = super::unsigned::normalize(ret_type, quote!(result));
+        let result = super::unsigned::normalize_for_lower(ret_type, quote!(result));
         match ret_type {
             Type::Custom { builtin, .. } => {
                 Self::callback_return_handling(builtin, method_name, args)

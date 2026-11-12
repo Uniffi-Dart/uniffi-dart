@@ -196,6 +196,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             let variant_dart_cls_name = &variant_class_name(variant_obj.name());
 
             // Prepare constructor parameters
+            let mut initializers = Vec::new();
             let constructor_params = variant_obj
                 .fields()
                 .iter()
@@ -203,18 +204,16 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                 .map(|(i, field)| {
                     let param_name = field_name(field, i);
                     let param_type = field_type(field, type_helper);
-                    if super::unsigned::accepts_u64(&field.as_type()) {
-                        let param_type = super::unsigned::input_type(&field.as_type());
-                        return if variant_obj.fields().len() > 1 {
-                            quote!(required $param_type $param_name)
-                        } else {
-                            quote!($param_type $param_name)
-                        };
-                    }
+                    let (formal, initializer) = super::unsigned::constructor_field(
+                        &field.as_type(),
+                        &param_name,
+                        quote!($param_type this.$(&param_name)),
+                    );
+                    initializers.extend(initializer);
                     if variant_obj.fields().len() > 1 {
-                        quote!(required $param_type this.$param_name)
+                        quote!(required $formal)
                     } else {
-                        quote!($param_type this.$param_name)
+                        formal
                     }
                 })
                 .collect::<Vec<_>>();
@@ -225,19 +224,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                 quote!($( for p in constructor_params => $p, ))
             };
 
-            let mut constructor_initializers = dart::Tokens::new();
-            for (i, field) in variant_obj.fields().iter().enumerate() {
-                if super::unsigned::accepts_u64(&field.as_type()) {
-                    if constructor_initializers.is_empty() {
-                        constructor_initializers.append(quote!(:));
-                    } else {
-                        constructor_initializers.append(quote!(,));
-                    }
-                    let name = field_name(field, i);
-                    let value = super::unsigned::normalize(&field.as_type(), quote!($(&name)));
-                    constructor_initializers.append(quote!($name = $value));
-                }
-            }
+            let constructor_initializers = super::unsigned::initializer_list(&initializers);
 
             // Nested fields use their buffer readers/writers directly, including flat enums.
             let field_read_code: Vec<dart::Tokens> = variant_obj.fields().iter().enumerate().map(|(i, field)| {

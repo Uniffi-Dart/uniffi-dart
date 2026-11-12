@@ -51,61 +51,30 @@ impl Renderable for RecordCodeType {
 pub fn generate_record(obj: &Record, type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
     let cls_name = &DartCodeOracle::class_name(obj.name());
     let ffi_conv_name = &obj.as_codetype().ffi_converter_name();
+    let mut initializers = Vec::new();
     let constructor_params: Vec<dart::Tokens> = obj
         .fields()
         .iter()
         .map(|field| {
             let name = DartCodeOracle::var_name(field.name());
-            if super::unsigned::accepts_u64(&field.as_type()) {
-                let ty = super::unsigned::input_type(&field.as_type());
-                if let Some(default) =
-                    field.default_value().and_then(|d| render_default_value(d, &field.as_type()))
-                {
-                    return quote!($ty $name = $default);
-                }
-                return if matches!(field.as_type(), Type::Optional { .. }) {
-                    quote!($ty $name)
-                } else {
-                    quote!(required $ty $name)
-                };
-            }
+            let (formal, initializer) =
+                super::unsigned::constructor_field(&field.as_type(), &name, quote!(this.$(&name)));
+            initializers.extend(initializer);
             if let Some(default_value) = field.default_value() {
                 if let Some(default_expr) = render_default_value(default_value, &field.as_type()) {
-                    quote!(this.$name = $(default_expr))
+                    quote!($formal = $(default_expr))
                 } else {
                     // Fallback to required when a default is present but cannot be rendered safely.
-                    quote!(required this.$name)
+                    quote!(required $formal)
                 }
             } else if matches!(field.as_type(), Type::Optional { .. }) {
-                quote!(this.$name)
+                formal
             } else {
-                quote!(required this.$name)
+                quote!(required $formal)
             }
         })
         .collect();
-
-    let initializers: Vec<_> = obj
-        .fields()
-        .iter()
-        .filter(|f| super::unsigned::accepts_u64(&f.as_type()))
-        .map(|f| {
-            let name = DartCodeOracle::var_name(f.name());
-            let value = super::unsigned::normalize(&f.as_type(), quote!($(&name)));
-            quote!($name = $value)
-        })
-        .collect();
-    let initializer_list = if initializers.is_empty() {
-        quote!()
-    } else {
-        let mut values = dart::Tokens::new();
-        for (i, init) in initializers.iter().enumerate() {
-            if i != 0 {
-                values.append(quote!(,));
-            }
-            values.append(init.clone());
-        }
-        quote!(: $values)
-    };
+    let initializer_list = super::unsigned::initializer_list(&initializers);
     let constructor = if obj.fields().is_empty() {
         quote!($(cls_name)();)
     } else {
