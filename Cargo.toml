@@ -65,6 +65,7 @@ members = [
     "fixtures/bytes_types",
     "fixtures/library_config",
     "fixtures/callbacks",
+    "fixtures/callback-ffi-types",
     "fixtures/benchmarks",
     "fixtures/custom_types",
     "fixtures/docstring-proc-macro",
