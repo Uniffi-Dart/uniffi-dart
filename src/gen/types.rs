@@ -224,6 +224,7 @@ pub fn generate_type(ty: &Type) -> dart::Tokens {
         }
         Type::Enum { name, .. } => quote!($(DartCodeOracle::class_name(name))),
         Type::Duration => quote!(Duration),
+        Type::Timestamp => quote!(DateTime),
         Type::Record { name, .. } => quote!($(DartCodeOracle::class_name(name))),
         Type::Custom { name, .. } => quote!($(DartCodeOracle::class_name(name))),
         _ => todo!("Type::{:?}", ty),
