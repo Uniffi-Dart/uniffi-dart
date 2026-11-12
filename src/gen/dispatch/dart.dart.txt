@@ -1,0 +1,122 @@
+const _uniffiDispatchAsset = '@ASSET@';
+@Native<
+  Uint64 Function(Pointer<NativeFunction<Void Function()>>, Pointer<Void>)
+>(assetId: _uniffiDispatchAsset, symbol: 'uniffi_dispatch_create')
+external int _uniffiDispatchCreate(
+  Pointer<NativeFunction<Void Function()>> wake,
+  Pointer<Void> api,
+);
+@Native<Void Function(Uint64)>(
+  assetId: _uniffiDispatchAsset,
+  symbol: 'uniffi_dispatch_drain',
+)
+external void _uniffiDispatchDrain(int endpoint);
+@Native<Bool Function(Uint64)>(
+  assetId: _uniffiDispatchAsset,
+  symbol: 'uniffi_dispatch_close',
+)
+external bool _uniffiDispatchClose(int endpoint);
+
+@Native<Void Function(Uint64, Uint64)>(
+  assetId: _uniffiDispatchAsset,
+  symbol: 'uniffi_dispatch_unregister',
+)
+external void _uniffiDispatchUnregister(int endpoint, int handle);
+
+@Native<Uint64 Function()>(
+  assetId: _uniffiDispatchAsset,
+  symbol: 'uniffi_dispatch_abi_hash',
+)
+external int _uniffiDispatchAbiHash();
+
+@Native<Bool Function(Uint64)>(
+  assetId: _uniffiDispatchAsset,
+  symbol: 'uniffi_dispatch_has_routes',
+)
+external bool _uniffiDispatchHasRoutes(int endpoint);
+
+class _UniffiDispatch {
+  final _pending = <List<void Function()>>[];
+  T call<T>(T Function() invoke) {
+    id;
+    final undo = <void Function()>[];
+    _pending.add(undo);
+    try {
+      return invoke();
+    } finally {
+      _pending.removeLast();
+      try {
+        for (final release in undo.reversed) {
+          release();
+        }
+      } finally {
+        _refreshKeepAlive();
+      }
+    }
+  }
+
+  void onLowered(void Function() undo) {
+    _listener.keepIsolateAlive = true;
+    if (_pending.isNotEmpty) _pending.last.add(undo);
+  }
+
+  void transferred() {
+    if (_pending.isNotEmpty) _pending.last.clear();
+  }
+
+  late final NativeCallable<Void Function()> _listener;
+  late final int _id;
+  void _refreshKeepAlive() {
+    if (!_closed) _listener.keepIsolateAlive = _uniffiDispatchHasRoutes(_id);
+  }
+
+  bool _closed = false;
+  _UniffiDispatch() {
+    if (sizeOf<IntPtr>() != 8)
+      throw UnsupportedError('Callback dispatch requires a 64-bit target');
+    final actual = _uniffiDispatchAbiHash();
+    if (actual != _uniffiExpectedDispatchAbiHash) {
+      throw StateError(
+        'Callback dispatch companion does not match these bindings (companion '
+        'ABI hash 0x${actual.toRadixString(16)}, bindings expect '
+        '0x${_uniffiExpectedDispatchAbiHash.toRadixString(16)}). Rebuild the '
+        'uniffi_dispatch companion crate generated with these bindings.',
+      );
+    }
+    _listener = NativeCallable<Void Function()>.listener(() {
+      _uniffiDispatchDrain(_id);
+      _refreshKeepAlive();
+    });
+    _id = _uniffiDispatchCreate(
+      _listener.nativeFunction,
+      NativeApi.initializeApiDLData,
+    );
+    if (_id == 0) {
+      _listener.close();
+      throw UnsupportedError(
+        'Dart VM does not provide isolate ownership checks',
+      );
+    }
+    _listener.keepIsolateAlive = false;
+  }
+  int get id {
+    if (_closed) throw StateError('Callback dispatcher is closed');
+    return _id;
+  }
+
+  bool close() {
+    if (_closed) return true;
+    if (_pending.isNotEmpty) return false;
+    if (!_uniffiDispatchClose(_id)) return false;
+    _closed = true;
+    _listener.close();
+    return true;
+  }
+}
+
+final _uniffiDispatch = _UniffiDispatch();
+
+/// Releases this isolate's dispatcher after Rust drops all callback handles.
+/// Returns false while callbacks, native calls or listener messages remain.
+/// Yield to the event loop before retrying. Do not use the bindings after close.
+bool closeCallbackDispatcher() => _uniffiDispatch.close();
