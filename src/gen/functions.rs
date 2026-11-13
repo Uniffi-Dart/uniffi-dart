@@ -9,6 +9,7 @@ use crate::gen::oracle::DartCodeOracle;
 use crate::gen::render::AsRenderable;
 
 pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
+    let call_status = &DartCodeOracle::call_status_name(&func.arguments());
     let args = if func.arguments().is_empty() {
         quote!()
     } else {
@@ -67,9 +68,9 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
     } else if ret == quote!(void) {
         quote!(
             $ret $(DartCodeOracle::fn_name(func.name()))($args) {
-                return rustCall((status) {
+                return rustCall(($call_status) {
                     $(func.ffi_func().name())(
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
+                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) $call_status
                     );
                 }, $error_handler);
             }
@@ -78,8 +79,8 @@ pub fn generate_function(func: &Function, type_helper: &dyn TypeHelperRenderer) 
         quote!(
             $ret $(DartCodeOracle::fn_name(func.name()))($args) {
                 return rustCallWithLifter(
-                    (status) => $(func.ffi_func().name())(
-                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) status
+                    ($call_status) => $(func.ffi_func().name())(
+                        $(for arg in &func.arguments() => $(DartCodeOracle::lower_arg_with_callback_handling(arg)),) $call_status
                     ),
                     $lifter,
                     $error_handler
