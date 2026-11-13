@@ -384,6 +384,99 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                 Exception lift(RustBuffer errorBuf);
             }
 
+            // Lowering is synchronous and isolate-local. Nested calls get a separate scope;
+            // callbacks entered by Rust run with tracking suspended.
+            T uniffiWithoutArgumentTracking<T>(T Function() invoke) {
+                final previous = UniffiArgumentScope.current;
+                UniffiArgumentScope.current = null;
+                try { return invoke(); }
+                finally { UniffiArgumentScope.current = previous; }
+            }
+
+            T uniffiWithArguments<T>(T Function(UniffiArgumentScope) prepare,
+                [Pointer<RustCallStatus>? status]) {
+                final previous = UniffiArgumentScope.current;
+                final scope = UniffiArgumentScope(status);
+                UniffiArgumentScope.current = scope;
+                try {
+                    return prepare(scope);
+                } catch (_) {
+                    try {
+                        scope.close();
+                    } catch (_) {
+                        // Preserve the preparation failure after best-effort cleanup.
+                    }
+                    rethrow;
+                } finally {
+                    UniffiArgumentScope.current = null;
+                    try {
+                        scope.close();
+                    } finally {
+                        UniffiArgumentScope.current = previous;
+                    }
+                }
+            }
+
+            class UniffiArgumentScope {
+                static UniffiArgumentScope? current;
+                // Reserve cleanup storage before acquiring any arguments. Rollback must
+                // still work if a later native allocation keeps failing.
+                final Pointer<RustCallStatus> _status;
+                final bool _ownsStatus;
+                UniffiArgumentScope([Pointer<RustCallStatus>? status])
+                    : _status = status ?? calloc<RustCallStatus>(),
+                      _ownsStatus = status == null;
+                final _owned = <void Function(Pointer<RustCallStatus>)>[];
+
+                void own(void Function(Pointer<RustCallStatus>) release) {
+                    _owned.add(release);
+                }
+
+                T call<T>(T Function() invoke) {
+                    final previous = current;
+                    current = null;
+                    try {
+                        final result = invoke();
+                        // A returned error status also means Rust consumed the arguments.
+                        _owned.clear();
+                        return result;
+                    } finally {
+                        current = previous;
+                    }
+                }
+
+                bool _closed = false;
+
+                void close() {
+                    if (_closed) return;
+                    _closed = true;
+                    try {
+                        _releaseRemaining();
+                    } finally {
+                        if (_ownsStatus) calloc.free(_status);
+                    }
+                }
+
+                void _releaseRemaining() {
+                    Object? firstError;
+                    StackTrace? firstStack;
+                    while (_owned.isNotEmpty) {
+                        final release = _owned.removeLast();
+                        try {
+                            _status.ref.code = CALL_SUCCESS;
+                            release(_status);
+                            checkCallStatus(NullRustCallStatusErrorHandler(), _status);
+                        } catch (error, stack) {
+                            firstError ??= error;
+                            firstStack ??= stack;
+                        }
+                    }
+                    if (firstError != null) {
+                        Error.throwWithStackTrace(firstError, firstStack!);
+                    }
+                }
+            }
+
             final class RustBuffer extends Struct {
                 @Uint64()
                 external int capacity;
@@ -394,11 +487,15 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                 external Pointer<Uint8> data;
 
                 static RustBuffer alloc(int size) {
-                    return rustCall((status) => $(ci.ffi_rustbuffer_alloc().name())(size, status));
+                    final buffer = rustCall((status) => $(ci.ffi_rustbuffer_alloc().name())(size, status));
+                    UniffiArgumentScope.current?.own((status) => $(ci.ffi_rustbuffer_free().name())(buffer, status));
+                    return buffer;
                 }
 
                 static RustBuffer fromBytes(ForeignBytes bytes) {
-                    return rustCall((status) => $(ci.ffi_rustbuffer_from_bytes().name())(bytes, status));
+                    final buffer = rustCall((status) => $(ci.ffi_rustbuffer_from_bytes().name())(bytes, status));
+                    UniffiArgumentScope.current?.own((status) => $(ci.ffi_rustbuffer_free().name())(buffer, status));
+                    return buffer;
                 }
 
                 // static RustBuffer from(Pointer<Uint8> bytes, int len) {
