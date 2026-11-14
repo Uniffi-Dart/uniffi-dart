@@ -200,7 +200,7 @@ impl<'a> DartWrapper<'a> {
             // via Native Assets. Dart automatically prefixes asset names with "package:{packageName}/",
             // so we construct the full ID here to match what the build hook registers.
             // The asset ID format is: package:{dart_package_name}/uniffi:{cdylib_name}
-            const _uniffiAssetId = $(quoted(format!("package:{}/{}", package_name, asset_id_suffix)));
+            const _uniffiAssetId = $(quoted(format!("package:{package_name}/{asset_id_suffix}")));
 
             $(functions_definitions)
 

@@ -9,7 +9,7 @@ macro_rules! impl_code_type_for_primitive {
                     $class_name.into()
                 }
 
-                fn literal(&self, literal: &uniffi_bindgen::pipeline::general::nodes::Literal) -> String {
+                fn literal(&self, literal: &uniffi_bindgen::interface::Literal) -> String {
                     $crate::gen::primitives::render_literal(&literal)
                 }
 
