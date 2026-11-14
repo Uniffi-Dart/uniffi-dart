@@ -21,7 +21,7 @@ void main() {
       // The owner still holds its own reference.
       expect(persisterDropCount(), before);
       owner.dispose();
-      expect(persisterDropCount(), before + 1);
+      expect(persisterDropCount(), before + BigInt.one);
       expect(tracker.calloc.live, isEmpty);
     },
   );

@@ -81,7 +81,7 @@ void main() {
     expect(getPreEpochTimestamp().microsecondsSinceEpoch, -1001000);
     expect(
       getSecondsBeforeUnixEpoch(a: epoch.subtract(const Duration(seconds: 2))),
-      2,
+      BigInt.two,
     );
     expect(
       setSecondsBeforeUnixEpoch(seconds: 2).microsecondsSinceEpoch,

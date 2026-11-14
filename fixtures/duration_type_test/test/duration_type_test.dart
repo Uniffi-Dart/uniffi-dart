@@ -81,7 +81,7 @@ void main() {
   });
 
   test('zero duration roundtrips', () {
-    expect(getSeconds(duration: Duration.zero), 0);
+    expect(getSeconds(duration: Duration.zero), BigInt.zero);
     expect(getNanos(duration: Duration.zero), 0);
   });
 

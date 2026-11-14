@@ -34,10 +34,10 @@ class Counter implements Sink {
   int calls = 0;
   Counter(this.value);
   @override
-  int bytes(Uint8List bytes) {
+  BigInt bytes(Uint8List bytes) {
     check(bytes.length == 1 && bytes[0] == 42, 'callback payload corrupted');
     calls++;
-    return ++value;
+    return BigInt.from(++value);
   }
 
   @override
@@ -52,7 +52,7 @@ class Nested extends Counter {
   final inner = Counter(200);
   Nested() : super(100);
   @override
-  int bytes(Uint8List bytes) =>
+  BigInt bytes(Uint8List bytes) =>
       super.bytes(bytes) + callBytesThread(sink: inner);
 }
 
@@ -60,7 +60,7 @@ class CrossNested extends Counter {
   final auxiliary = Counter(0);
   CrossNested() : super(100);
   @override
-  int bytes(Uint8List bytes) {
+  BigInt bytes(Uint8List bytes) {
     final result = super.bytes(bytes);
     return calls == 1 ? result + callSavedThread(sink: auxiliary) : result;
   }
@@ -101,7 +101,7 @@ Future<void> isolateWorker((SendPort, int) args) async {
     final sink = Counter(initial);
     for (var i = 1; i <= 30; i++) {
       check(
-        callBytesThread(sink: sink) == initial + i,
+        callBytesThread(sink: sink) == BigInt.from(initial + i),
         'cross-isolate handle collision',
       );
       await Future<void>.delayed(const Duration(milliseconds: 1));
@@ -130,24 +130,24 @@ Future<void> main(List<String> args) async {
       check(sink.calls == 0, 'drop called a method');
     case 'direct':
       check(
-        callBytesDirect(sink: sink) == 101 && sink.value == 101,
+        callBytesDirect(sink: sink) == BigInt.from(101) && sink.value == 101,
         'direct callback',
       );
     case 'thread':
       check(
-        callBytesThread(sink: sink) == 101 && sink.value == 101,
+        callBytesThread(sink: sink) == BigInt.from(101) && sink.value == 101,
         'thread callback',
       );
     case 'parallel':
       check(
-        callBytesParallel(sink: sink) == 11240 &&
+        callBytesParallel(sink: sink) == BigInt.from(11240) &&
             sink.value == 180 &&
             sink.calls == 80,
         'parallel callbacks',
       );
     case 'clone':
       check(
-        callCloneThread(sink: sink) == 101 && sink.calls == 1,
+        callCloneThread(sink: sink) == BigInt.from(101) && sink.calls == 1,
         'clone callback',
       );
     case 'errors':
@@ -162,13 +162,14 @@ Future<void> main(List<String> args) async {
     case 'nested':
       final nested = Nested();
       check(
-        callBytesThread(sink: nested) == 302 && nested.inner.calls == 1,
+        callBytesThread(sink: nested) == BigInt.from(302) &&
+            nested.inner.calls == 1,
         'nested callback',
       );
     case 'cross-nested':
       final nested = CrossNested();
       check(
-        callCrossNested(sink: nested) == 203 && nested.calls == 2,
+        callCrossNested(sink: nested) == BigInt.from(203) && nested.calls == 2,
         'outer handle callback',
       );
     case 'retained':
@@ -180,7 +181,10 @@ Future<void> main(List<String> args) async {
       check(sink.calls == 50, 'retained clone callbacks lost');
     case 'repeat':
       for (var i = 1; i <= 100; i++) {
-        check(callBytesThread(sink: sink) == 100 + i, 'repeated callback');
+        check(
+          callBytesThread(sink: sink) == BigInt.from(100 + i),
+          'repeated callback',
+        );
       }
     case 'rollback':
       var caught = false;
