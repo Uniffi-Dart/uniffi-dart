@@ -44,7 +44,7 @@ void main() {
         });
     try {
       asyncInputSourceValue(
-        handle.address,
+        handle,
         invalidUtf8,
         completion.nativeFunction,
         0,
@@ -59,7 +59,7 @@ void main() {
     } finally {
       completion.close();
       calloc.free(out);
-      asyncInputSourceFreeCallback(handle.address);
+      asyncInputSourceFreeCallback(handle);
     }
   });
   test('result lowering failure reaches the Rust future as an error', () async {
@@ -121,7 +121,7 @@ void main() {
             if (!done.isCompleted) done.complete(code);
           });
       try {
-        asyncByteSourceValue(handle.address, completion.nativeFunction, 0, out);
+        asyncByteSourceValue(handle, completion.nativeFunction, 0, out);
         expect(await done.future.timeout(Duration(seconds: 5)), entry.value.$2);
         await Future<void>.delayed(Duration.zero);
         expect(completions, 1);
@@ -133,7 +133,7 @@ void main() {
       } finally {
         completion.close();
         calloc.free(out);
-        asyncByteSourceFreeCallback(handle.address);
+        asyncByteSourceFreeCallback(handle);
       }
     });
   }
@@ -142,7 +142,7 @@ void main() {
     final handle = FfiConverterCallbackInterfaceAsyncByteSource.lower(
       ByteSource(() async => 42),
     );
-    asyncByteSourceFreeCallback(handle.address);
+    asyncByteSourceFreeCallback(handle);
     final out = calloc<UniffiForeignFuture>();
     final done = Completer<int>();
     final completion =
@@ -155,7 +155,7 @@ void main() {
           if (!done.isCompleted) done.complete(code);
         });
     try {
-      asyncByteSourceValue(handle.address, completion.nativeFunction, 0, out);
+      asyncByteSourceValue(handle, completion.nativeFunction, 0, out);
       expect(
         await done.future.timeout(Duration(seconds: 5)),
         CALL_UNEXPECTED_ERROR,
@@ -190,7 +190,7 @@ void main() {
             });
         try {
           asyncByteSourceValue(
-            handle.address,
+            handle,
             completion.nativeFunction,
             0,
             out,
@@ -216,7 +216,7 @@ void main() {
         } finally {
           completion.close();
           calloc.free(out);
-          asyncByteSourceFreeCallback(handle.address);
+          asyncByteSourceFreeCallback(handle);
         }
       },
     );
