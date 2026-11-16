@@ -135,6 +135,9 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                 DartCodeOracle::var_name(field.name())
             }
         }
+        // The field's code type already names its type the way that type's
+        // declaration does (`DartCodeOracle::class_name` renames a trailing `Error`
+        // only), so it is used unchanged.
         fn field_type(field: &Field, type_helper: &dyn TypeHelperRenderer) -> String {
             field
                 .as_type()
@@ -142,10 +145,9 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                 .render_type(&field.as_type(), type_helper)
                 .to_string()
                 .expect("Could not stringify type")
-                .replace("Error", "Exception")
         }
         fn field_ffi_converter_name(field: &Field) -> String {
-            field.as_type().as_codetype().ffi_converter_name().replace("Error", "Exception")
+            field.as_type().as_codetype().ffi_converter_name()
         }
         // A data-carrying variant's Dart class is named `{Variant}{Enum}`, which
         // can collide with a real top-level type of the same name (e.g. enum

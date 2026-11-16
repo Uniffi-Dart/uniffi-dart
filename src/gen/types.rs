@@ -41,11 +41,6 @@ impl<'a> TypeHelpersRenderer<'a> {
     fn register_type_helper(&self, ty: &Type) {
         let canonical_name = ty.as_codetype().canonical_name();
         self.include_once_check(&canonical_name, ty);
-
-        let exception_safe_name = DartCodeOracle::exception_safe_name(&canonical_name);
-        if exception_safe_name != canonical_name {
-            self.include_once_check(&exception_safe_name, ty);
-        }
     }
 
     fn register_type_helpers(&self, ty: &Type) {

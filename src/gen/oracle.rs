@@ -44,11 +44,6 @@ impl DartCodeOracle {
         }
     }
 
-    /// Replace any occurrence of `Error` with `Exception` to avoid Dart naming conflicts.
-    pub fn exception_safe_name(name: &str) -> String {
-        name.replace("Error", "Exception")
-    }
-
     /// Get the idiomatic Dart rendering of a function name.
     pub fn fn_name(nm: &str) -> String {
         Self::sanitize_identifier(&nm.to_lower_camel_case())
