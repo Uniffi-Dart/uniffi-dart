@@ -11,6 +11,9 @@ pub trait Renderer<T> {
 }
 
 pub trait TypeHelperRenderer {
+    fn callback_dispatch(&self) -> bool {
+        false
+    }
     fn get_ci(&self) -> &ComponentInterface;
     fn include_once_check(&self, name: &str, ty: &Type) -> bool;
     fn check(&self, name: &str) -> bool;

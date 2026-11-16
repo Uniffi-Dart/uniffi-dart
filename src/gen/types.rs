@@ -17,6 +17,7 @@ type FunctionDefinition = dart::Tokens;
 pub const RUNTIME_MODULE: &str = "uniffi_runtime";
 
 pub struct TypeHelpersRenderer<'a> {
+    pub callback_dispatch: bool,
     ci: &'a ComponentInterface,
     include_once_names: RefCell<BTreeMap<String, Type>>,
     // Tracks ad-hoc "include once" names that don't map to a concrete `Type`
@@ -26,6 +27,7 @@ pub struct TypeHelpersRenderer<'a> {
 impl<'a> TypeHelpersRenderer<'a> {
     pub fn new(ci: &'a ComponentInterface) -> Self {
         Self {
+            callback_dispatch: false,
             ci,
             include_once_names: RefCell::new(BTreeMap::new()),
             include_once_custom: RefCell::new(BTreeSet::new()),
@@ -94,6 +96,9 @@ impl<'a> TypeHelpersRenderer<'a> {
 }
 
 impl TypeHelperRenderer for TypeHelpersRenderer<'_> {
+    fn callback_dispatch(&self) -> bool {
+        self.callback_dispatch
+    }
     // Checks if the type imports for each type have already been added
     fn include_once_check(&self, name: &str, ty: &Type) -> bool {
         let mut map = self.include_once_names.borrow_mut();
