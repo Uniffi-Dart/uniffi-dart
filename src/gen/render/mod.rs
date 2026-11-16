@@ -48,6 +48,10 @@ pub trait Renderable {
             Type::Sequence { inner_type } => {
                 quote!(List<$(&self.render_type(inner_type, type_helper))>)
             }
+            Type::Set { inner_type } => {
+                quote!(Set<$(&self.render_type(inner_type, type_helper))>)
+            }
+            Type::Box { inner_type } => return self.render_type(inner_type, type_helper),
             Type::Map { key_type, value_type } => {
                 quote!(Map<$(&self.render_type(key_type, type_helper)), $(&self.render_type(value_type, type_helper))>)
             }
@@ -96,9 +100,14 @@ impl<T: AsType> AsRenderable for T {
             Type::Sequence { inner_type } => {
                 Box::new(compounds::SequenceCodeType::new(self.as_type(), *inner_type))
             }
+            Type::Set { inner_type } => {
+                Box::new(compounds::SetCodeType::new(self.as_type(), *inner_type))
+            }
             Type::Map { key_type, value_type } => {
                 Box::new(compounds::MapCodeType::new(self.as_type(), *key_type, *value_type))
             }
+            // `Box<T>` is transparent across the FFI: its helper is `T`'s.
+            Type::Box { inner_type } => inner_type.as_renderable(),
             Type::Enum { name, .. } => Box::new(enums::EnumCodeType::new(name)),
             Type::Record { name, .. } => Box::new(records::RecordCodeType::new(name)),
             Type::Custom { name, module_path, builtin } => {

@@ -224,6 +224,8 @@ pub fn generate_type(ty: &Type) -> dart::Tokens {
         Type::Boolean => quote!(bool),
         Type::Optional { inner_type } => quote!($(generate_type(inner_type))?),
         Type::Sequence { inner_type } => quote!(List<$(generate_type(inner_type))>),
+        Type::Set { inner_type } => quote!(Set<$(generate_type(inner_type))>),
+        Type::Box { inner_type } => generate_type(inner_type),
         Type::Map { key_type, value_type } => {
             quote!(Map<$(generate_type(key_type)), $(generate_type(value_type))>)
         }

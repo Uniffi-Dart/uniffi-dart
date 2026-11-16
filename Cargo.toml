@@ -94,6 +94,7 @@ members = [
     "fixtures/proc-macro-no-implicit-prelude",
     "fixtures/enum_variant_collision",
     "fixtures/map_type",
+    "fixtures/box_set_types",
     #"fixtures/*",
 ]
 

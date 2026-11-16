@@ -342,3 +342,81 @@ impl Renderable for MapCodeType {
         }
     }
 }
+
+// Set<T>: on the wire a sequence (an i32 count, then each element), as in
+// uniffi's own Kotlin and Swift backends; a Dart `Set` on the foreign side.
+#[derive(Debug)]
+pub struct SetCodeType {
+    self_type: Type,
+    inner: Type,
+}
+
+impl SetCodeType {
+    pub fn new(self_type: Type, inner: Type) -> Self {
+        Self { self_type, inner }
+    }
+}
+
+impl CodeType for SetCodeType {
+    fn type_label(&self) -> String {
+        format!("Set<{}>", DartCodeOracle::find(&self.inner).type_label())
+    }
+
+    fn canonical_name(&self) -> String {
+        format!("Set{}", DartCodeOracle::find(&self.inner).canonical_name())
+    }
+}
+
+impl Renderable for SetCodeType {
+    fn render_type_helper(&self, type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
+        if type_helper.include_once_check(&self.ffi_converter_name(), &self.self_type) {
+            return quote!();
+        }
+        let inner_codetype = DartCodeOracle::find(&self.inner);
+        type_helper.include_once_check(&inner_codetype.canonical_name(), &self.inner);
+
+        let cl_name = &self.ffi_converter_name();
+        let type_label = &self.type_label();
+        let inner_label = &inner_codetype.type_label();
+        let inner_conv = &inner_codetype.ffi_converter_name();
+
+        quote! {
+            class $cl_name {
+                static $type_label lift(RustBuffer buf) {
+                    return $cl_name.read(buf.asUint8List()).value;
+                }
+
+                static LiftRetVal<$type_label> read(Uint8List buf) {
+                    final res = <$inner_label>{};
+                    final length = buf.buffer.asByteData(buf.offsetInBytes).getInt32(0);
+                    int offset = buf.offsetInBytes + 4;
+                    for (var i = 0; i < length; i++) {
+                        final ret = $inner_conv.read(Uint8List.view(buf.buffer, offset));
+                        offset += ret.bytesRead;
+                        res.add(ret.value);
+                    }
+                    return LiftRetVal(res, offset - buf.offsetInBytes);
+                }
+
+                static int write($type_label value, Uint8List buf) {
+                    buf.buffer.asByteData(buf.offsetInBytes).setInt32(0, value.length);
+                    int offset = buf.offsetInBytes + 4;
+                    for (final item in value) {
+                        offset += $inner_conv.write(item, Uint8List.view(buf.buffer, offset));
+                    }
+                    return offset - buf.offsetInBytes;
+                }
+
+                static int allocationSize($type_label value) {
+                    return value.map((l) => $inner_conv.allocationSize(l)).fold(4, (a, b) => a + b);
+                }
+
+                static RustBuffer lower($type_label value) {
+                    final buf = Uint8List(allocationSize(value));
+                    write(value, buf);
+                    return toRustBuffer(buf);
+                }
+            }
+        }
+    }
+}

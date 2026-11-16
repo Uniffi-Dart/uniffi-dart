@@ -270,6 +270,12 @@ impl DartCodeOracle {
                     let inner = DartCodeOracle::dart_type_label(Some(inner_type));
                     quote!(List<$inner>)
                 }
+                Type::Set { inner_type } => {
+                    let inner = DartCodeOracle::dart_type_label(Some(inner_type));
+                    quote!(Set<$inner>)
+                }
+                // `Box<T>` is transparent across the FFI: it is `T` on the foreign side.
+                Type::Box { inner_type } => DartCodeOracle::dart_type_label(Some(inner_type)),
                 Type::Map { key_type, value_type, .. } => {
                     let key = DartCodeOracle::dart_type_label(Some(key_type));
                     let value = DartCodeOracle::dart_type_label(Some(value_type));
@@ -318,7 +324,9 @@ impl DartCodeOracle {
                     _ => quote!(RustBuffer),
                 },
                 Type::Sequence { .. } => quote!(RustBuffer),
+                Type::Set { .. } => quote!(RustBuffer),
                 Type::Map { .. } => quote!(RustBuffer),
+                Type::Box { inner_type } => Self::native_type_label(Some(inner_type)),
                 Type::Object { .. } => quote!(Pointer<Void>),
                 Type::Enum { .. } => quote!(Int32),
                 Type::Record { .. } => quote!(RustBuffer),
@@ -357,7 +365,9 @@ impl DartCodeOracle {
                     _ => quote!(RustBuffer),
                 },
                 Type::Sequence { .. } => quote!(RustBuffer),
+                Type::Set { .. } => quote!(RustBuffer),
                 Type::Map { .. } => quote!(RustBuffer),
+                Type::Box { inner_type } => Self::native_dart_type_label(Some(inner_type)),
                 Type::Object { .. } => quote!(Pointer<Void>),
                 Type::Enum { .. } => quote!(int),
                 Type::Record { .. } => quote!(RustBuffer),
@@ -752,9 +762,14 @@ impl<T: AsType> AsCodeType for T {
             Type::Sequence { inner_type } => {
                 Box::new(compounds::SequenceCodeType::new(self.as_type(), *inner_type))
             }
+            Type::Set { inner_type } => {
+                Box::new(compounds::SetCodeType::new(self.as_type(), *inner_type))
+            }
             Type::Map { key_type, value_type, .. } => {
                 Box::new(compounds::MapCodeType::new(self.as_type(), *key_type, *value_type))
             }
+            // `Box<T>` is transparent across the FFI: lift, lower and name it as `T`.
+            Type::Box { inner_type } => inner_type.as_codetype(),
             Type::Enum { name, .. } => Box::new(enums::EnumCodeType::new(name)),
             Type::Record { name, .. } => Box::new(records::RecordCodeType::new(name)),
             Type::CallbackInterface { name, .. } => {
