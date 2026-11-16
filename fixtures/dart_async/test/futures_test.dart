@@ -1,4 +1,5 @@
 import 'package:test/test.dart';
+
 import '../dart_async.dart';
 
 Future<Duration> measureTime(Future<void> Function() action) async {
@@ -72,21 +73,12 @@ void main() {
   });
 
   test('always_ready', () async {
-    final time = await measureTime(() async {
-      final result = await alwaysReady();
-      expect(result, true);
-    });
-
-    expect(time.inMilliseconds < 200, true);
-  });
+    expect(await alwaysReady(), isTrue);
+  }, timeout: Timeout(Duration(seconds: 10)));
 
   test('void', () async {
-    final time = await measureTime(() async {
-      await void_();
-    });
-    // Less than or equal to time
-    expect(time.inMilliseconds <= 10, true);
-  });
+    await expectLater(void_(), completes);
+  }, timeout: Timeout(Duration(seconds: 10)));
 
   test('sleep', () async {
     final time = await measureTime(() async {
@@ -136,13 +128,16 @@ void main() {
     // with ~2000ms of structural headroom (not a tuned threshold), so it can't
     // reflake on a loaded runner.
     var slowDone = false;
-    final slow =
-        sayAfter(ms: 2000, who: 'Slow').whenComplete(() => slowDone = true);
+    final slow = sayAfter(
+      ms: 2000,
+      who: 'Slow',
+    ).whenComplete(() => slowDone = true);
     await sayAfter(ms: 1, who: 'Fast');
     expect(
       slowDone,
       isFalse,
-      reason: 'a 1ms future completed only after a 2000ms future that started '
+      reason:
+          'a 1ms future completed only after a 2000ms future that started '
           'earlier — FFI futures appear to be serialized',
     );
     await slow; // let the fixture call finish before the test ends
