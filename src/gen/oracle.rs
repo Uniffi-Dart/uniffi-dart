@@ -309,7 +309,7 @@ impl DartCodeOracle {
                 Type::Boolean => quote!(Int8),
                 Type::Bytes => quote!(RustBuffer),
                 Type::String => quote!(RustBuffer),
-                Type::Timestamp => quote!(Int64),
+                Type::Timestamp => quote!(RustBuffer),
                 Type::Duration => quote!(Int64),
                 Type::Optional { inner_type } => match **inner_type {
                     Type::String => quote!(RustBuffer),
@@ -348,7 +348,7 @@ impl DartCodeOracle {
                 Type::Boolean => quote!(int),
                 Type::Bytes => quote!(RustBuffer),
                 Type::String => quote!(RustBuffer),
-                Type::Timestamp => quote!(int),
+                Type::Timestamp => quote!(RustBuffer),
                 Type::Duration => quote!(int),
                 Type::Optional { inner_type } => match **inner_type {
                     Type::String => quote!(RustBuffer),
@@ -665,6 +665,7 @@ impl<T: AsType> AsCodeType for T {
             Type::Boolean => Box::new(primitives::BooleanCodeType),
             Type::String => Box::new(primitives::StringCodeType),
             Type::Duration => Box::new(primitives::DurationCodeType),
+            Type::Timestamp => Box::new(primitives::TimestampCodeType),
             Type::Bytes => Box::new(primitives::BytesCodeType),
             Type::Object { name, imp, .. } => Box::new(objects::ObjectCodeType::new(name, imp)),
             Type::Optional { inner_type } => {
@@ -684,7 +685,6 @@ impl<T: AsType> AsCodeType for T {
             Type::Custom { name, module_path, builtin } => {
                 Box::new(custom::CustomCodeType::new(name, module_path, builtin))
             }
-            _ => todo!("As Type for Type::{:?}", self.as_type()),
         }
     }
 }

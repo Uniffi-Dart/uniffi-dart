@@ -2,13 +2,14 @@
 name = "time-types"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [lib]
 name = "time_types"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-uniffi = "0.31"
+uniffi = { workspace = true }
 thiserror = "1.0"
 chrono = { version = "0.4", default-features = false, features = [
     "alloc",
@@ -18,3 +19,8 @@ chrono = { version = "0.4", default-features = false, features = [
 [build-dependencies]
 uniffi-dart = { path = "../../", features = ["build"] }
 camino = { workspace = true }
+
+[dev-dependencies]
+uniffi-dart = { path = "../../", features = ["bindgen-tests"] }
+uniffi = { workspace = true, features = ["bindgen-tests"] }
+anyhow = "1"
