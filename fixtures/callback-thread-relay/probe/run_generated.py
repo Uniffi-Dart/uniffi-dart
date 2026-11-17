@@ -13,7 +13,7 @@ import time
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--dart', default='dart')
-parser.add_argument('--toolchain', default='1.85.1')
+parser.add_argument('--toolchain', default='1.88.0')
 parser.add_argument('--offline', action='store_true')
 parser.add_argument('--aot', action='store_true')
 args = parser.parse_args()
