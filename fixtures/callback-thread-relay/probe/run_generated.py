@@ -97,8 +97,8 @@ for case in ['no-callback','owner-direct','thread-local-drop','direct','thread',
 # A stubbed return must not satisfy the original-object state assertion.
 probe = package/'probe.dart'
 original = probe.read_text()
-assert original.count('return ++value;') == 1
-probe.write_text(original.replace('return ++value;','return value + 1;'))
+assert original.count('return BigInt.from(++value);') == 1
+probe.write_text(original.replace('return BigInt.from(++value);','return BigInt.from(value + 1);'))
 try:
     if args.aot:
         run('mutation-build',[args.dart,'build','cli','--target','probe.dart','-o','mutation-aot'],cwd=package)

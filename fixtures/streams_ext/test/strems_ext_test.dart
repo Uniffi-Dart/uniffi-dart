@@ -29,14 +29,14 @@ void main() {
   test('Fibonacci Stream emits first 10 Fibonacci numbers', () {
     expect(
       fibonacciStream().take(10),
-      emitsInOrder([0, 1, 1, 2, 3, 5, 8, 13, 21, 34, emitsDone]),
+      emitsInOrder([...([0, 1, 1, 2, 3, 5, 8, 13, 21, 34].map(BigInt.from)), emitsDone]),
     );
   });
 
   test('Async Timer Stream emits incrementing numbers', () {
     expect(
       asyncTimerStream().take(5),
-      emitsInOrder([1, 2, 3, 4, 5, emitsDone]),
+      emitsInOrder([...([1, 2, 3, 4, 5].map(BigInt.from)), emitsDone]),
     );
   }, timeout: Timeout(Duration(seconds: 6)));
 

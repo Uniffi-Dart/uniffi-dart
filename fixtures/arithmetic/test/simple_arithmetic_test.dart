@@ -24,7 +24,7 @@ void main() {
     expect(addU16(left: 2, right: 2), 4);
   });
   test('u64', () {
-    expect(addU64(left: 2, right: 2), 4);
+    expect(addU64(left: 2, right: 2), BigInt.from(4));
   });
 
   test('i8', () {
@@ -53,7 +53,7 @@ void main() {
     expect(getBackU16(value: 4), 4);
   });
   test('get back u64', () {
-    expect(getBackU64(value: 4), 4);
+    expect(getBackU64(value: 4), BigInt.from(4));
   });
 
   test('get back  i8', () {
@@ -67,7 +67,7 @@ void main() {
   });
 
   test('divide by zero - success case', () {
-    expect(divideByZero(numerator: 10, denominator: 2), 5);
+    expect(divideByZero(numerator: 10, denominator: 2), BigInt.from(5));
   });
 
   test('divide by zero - error case', () {

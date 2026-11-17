@@ -13,11 +13,11 @@ void main() {
     'owned and optional inputs release scratch after native consumption',
     () {
       for (var i = 0; i < 100; i++) {
-        expect(ownedLen(value: Uint8List.fromList([1, 2, 3])), 3);
-        expect(ownedLen(value: Uint8List(0)), 0);
-        expect(optionalLen(value: 'x' * 64), 64);
-        expect(optionalLen(value: ''), 0);
-        expect(optionalLen(value: null), 0);
+        expect(ownedLen(value: Uint8List.fromList([1, 2, 3])), BigInt.from(3));
+        expect(ownedLen(value: Uint8List(0)), BigInt.from(0));
+        expect(optionalLen(value: 'x' * 64), BigInt.from(64));
+        expect(optionalLen(value: ''), BigInt.from(0));
+        expect(optionalLen(value: null), BigInt.from(0));
         expect(tracker.calloc.live, isEmpty);
       }
     },

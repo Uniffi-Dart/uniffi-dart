@@ -19,7 +19,8 @@ class DartTestCallbackInterface implements TestCallbackInterface {
   }
 
   @override
-  int runTest(TestCase testCase, int count) {
+  int runTest(TestCase testCase, BigInt countValue) {
+    final count = countValue.toIntChecked();
     final stopwatch = Stopwatch()..start();
 
     switch (testCase) {
@@ -100,13 +101,13 @@ void main() {
       final callback = DartTestCallbackInterface();
 
       // Run small performance tests
-      final functionTime = callback.runTest(TestCase.function, 10);
+      final functionTime = callback.runTest(TestCase.function, BigInt.from(10));
       expect(functionTime, greaterThan(0));
 
-      final voidTime = callback.runTest(TestCase.voidReturn, 10);
+      final voidTime = callback.runTest(TestCase.voidReturn, BigInt.from(10));
       expect(voidTime, greaterThan(0));
 
-      final noArgsTime = callback.runTest(TestCase.noArgsVoidReturn, 10);
+      final noArgsTime = callback.runTest(TestCase.noArgsVoidReturn, BigInt.from(10));
       expect(noArgsTime, greaterThan(0));
     });
 

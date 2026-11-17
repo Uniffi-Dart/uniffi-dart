@@ -196,6 +196,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             let variant_dart_cls_name = &variant_class_name(variant_obj.name());
 
             // Prepare constructor parameters
+            let mut initializers = Vec::new();
             let constructor_params = variant_obj
                 .fields()
                 .iter()
@@ -203,10 +204,16 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                 .map(|(i, field)| {
                     let param_name = field_name(field, i);
                     let param_type = field_type(field, type_helper);
+                    let (formal, initializer) = super::unsigned::constructor_field(
+                        &field.as_type(),
+                        &param_name,
+                        quote!($param_type this.$(&param_name)),
+                    );
+                    initializers.extend(initializer);
                     if variant_obj.fields().len() > 1 {
-                        quote!(required $param_type this.$param_name)
+                        quote!(required $formal)
                     } else {
-                        quote!($param_type this.$param_name)
+                        formal
                     }
                 })
                 .collect::<Vec<_>>();
@@ -216,6 +223,8 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
             } else {
                 quote!($( for p in constructor_params => $p, ))
             };
+
+            let constructor_initializers = super::unsigned::initializer_list(&initializers);
 
             // Nested fields use their buffer readers/writers directly, including flat enums.
             let field_read_code: Vec<dart::Tokens> = variant_obj.fields().iter().enumerate().map(|(i, field)| {
@@ -272,7 +281,7 @@ pub fn generate_enum(obj: &Enum, type_helper: &dyn TypeHelperRenderer) -> dart::
                     $(for (i, field) in variant_obj.fields().iter().enumerate() => final $(field_type(field, type_helper)) $(field_name(field, i));  )
 
                     // Add the public const constructor
-                    $variant_dart_cls_name($constructor_param_list);
+                    $variant_dart_cls_name($constructor_param_list) $constructor_initializers;
 
                     // Keep the private constructor used by `read`
                     $variant_dart_cls_name._($(for (i, field) in variant_obj.fields().iter().enumerate() => $(field_type(field, type_helper)) this.$(field_name(field, i)), ));

@@ -51,30 +51,34 @@ impl Renderable for RecordCodeType {
 pub fn generate_record(obj: &Record, type_helper: &dyn TypeHelperRenderer) -> dart::Tokens {
     let cls_name = &DartCodeOracle::class_name(obj.name());
     let ffi_conv_name = &obj.as_codetype().ffi_converter_name();
+    let mut initializers = Vec::new();
     let constructor_params: Vec<dart::Tokens> = obj
         .fields()
         .iter()
         .map(|field| {
             let name = DartCodeOracle::var_name(field.name());
+            let (formal, initializer) =
+                super::unsigned::constructor_field(&field.as_type(), &name, quote!(this.$(&name)));
+            initializers.extend(initializer);
             if let Some(default_value) = field.default_value() {
                 if let Some(default_expr) = render_default_value(default_value, &field.as_type()) {
-                    quote!(this.$name = $(default_expr))
+                    quote!($formal = $(default_expr))
                 } else {
                     // Fallback to required when a default is present but cannot be rendered safely.
-                    quote!(required this.$name)
+                    quote!(required $formal)
                 }
             } else if matches!(field.as_type(), Type::Optional { .. }) {
-                quote!(this.$name)
+                formal
             } else {
-                quote!(required this.$name)
+                quote!(required $formal)
             }
         })
         .collect();
-
+    let initializer_list = super::unsigned::initializer_list(&initializers);
     let constructor = if obj.fields().is_empty() {
         quote!($(cls_name)();)
     } else {
-        quote!($(cls_name)({$(for param in constructor_params => $param, )});)
+        quote!($(cls_name)({$(for param in constructor_params => $param, )}) $initializer_list;)
     };
 
     for f in obj.fields() {

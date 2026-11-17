@@ -214,12 +214,22 @@ fn generate_callback_methods_definitions(
     let ret_type = if method.is_async() {
         if let Some(ret) = method.return_type() {
             let rendered = ret.as_renderable().render_type(ret, type_helper);
+            let rendered = if super::unsigned::accepts_u64(ret) {
+                super::unsigned::input_type(ret)
+            } else {
+                rendered
+            };
             quote!(Future<$rendered>)
         } else {
             quote!(Future<void>)
         }
     } else if let Some(ret) = method.return_type() {
-        ret.as_renderable().render_type(ret, type_helper)
+        let rendered = ret.as_renderable().render_type(ret, type_helper);
+        if super::unsigned::accepts_u64(ret) {
+            super::unsigned::input_type(ret)
+        } else {
+            rendered
+        }
     } else {
         quote!(void)
     };
@@ -373,9 +383,13 @@ pub fn generate_callback_functions(
                 type_helper.include_once_check(&ret.as_codetype().canonical_name(), ret);
             }
 
+            // Flexible u64 results are validated by this lowering. It runs before
+            // completion is claimed, so a rejected value reaches the catch below
+            // and the future still completes with an error.
             let success_return = if let Some(ret) = m.return_type() {
                 let converter = ret.as_codetype().ffi_converter_name();
-                quote!(resultStruct.returnValue = $(&converter).lower(result);)
+                let value = super::unsigned::normalize_for_lower(ret, quote!(result));
+                quote!(resultStruct.returnValue = $(&converter).lower($value);)
             } else {
                 quote!()
             };

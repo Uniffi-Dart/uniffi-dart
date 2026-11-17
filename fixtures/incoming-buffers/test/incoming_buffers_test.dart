@@ -196,7 +196,7 @@ void main() {
     sendBuffers(consumer: consumer);
     final before = liveBytes();
     for (var i = 0; i < 20; i++) {
-      expect(sendBuffers(consumer: consumer), 96);
+      expect(sendBuffers(consumer: consumer), BigInt.from(96));
     }
     expect(liveBytes(), before);
     expect(consumer.saved, [List.filled(64, 4), List.filled(32, 5)]);
@@ -209,7 +209,7 @@ void main() {
       await sendBuffersAsync(consumer: consumer);
       final before = liveBytes();
       for (var i = 0; i < 20; i++) {
-        expect(await sendBuffersAsync(consumer: consumer), 96);
+        expect(await sendBuffersAsync(consumer: consumer), BigInt.from(96));
       }
       expect(liveBytes(), before);
       expect(consumer.saved, [List.filled(64, 4), List.filled(32, 5)]);
