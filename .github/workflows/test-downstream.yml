@@ -118,14 +118,14 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Fetch and bump bdk-ffi to uniffi 0.32
-        # bdk-dart re-exports bdk-ffi, pinned by git tag v3.1.0 at uniffi 0.31.2 —
+        # bdk-dart re-exports bdk-ffi, pinned by git tag v3.1.1 at uniffi 0.31.2 —
         # so the metadata bdk_dart_ffi embeds is 0.31 and this PR's 0.32 bindgen
         # cannot read it. Clone the commit that tag points to, bump its uniffi to
         # 0.32, and `[patch]` bdk-dart onto the local copy. The rev must track
         # bdk-dart's pin: if the crate versions differ, cargo silently ignores the
         # patch. Removed once bdk-ffi ships 0.32 upstream.
         run: |
-          BDK_FFI_REV=5fa4898a4dc6d1c3df12f2676a662149eff500ff # tag v3.1.0
+          BDK_FFI_REV=1c5f4863c6a53cc9d063d34c4e13c91fea5c58de # tag v3.1.1
           git init -q bdk-ffi
           git -C bdk-ffi remote add origin https://github.com/bitcoindevkit/bdk-ffi.git
           git -C bdk-ffi fetch --depth 1 origin "$BDK_FFI_REV" -q
