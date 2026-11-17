@@ -56,8 +56,8 @@ pub fn async_timer_stream() -> Pin<Box<dyn Stream<Item = u64> + Send>> {
 
 #[uniffi_dart::export_stream(String)]
 pub fn combined_streams() -> impl Stream<Item = String> + Send {
-    let stream1 = count_stream().take(5).map(|n| format!("Count: {}", n));
-    let stream3 = fibonacci_stream().take(5).map(|n| format!("Fibonacci: {}", n));
+    let stream1 = count_stream().take(5).map(|n| format!("Count: {n}"));
+    let stream3 = fibonacci_stream().take(5).map(|n| format!("Fibonacci: {n}"));
 
     stream::select(stream1, stream3)
 }

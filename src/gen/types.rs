@@ -224,6 +224,8 @@ pub fn generate_type(ty: &Type) -> dart::Tokens {
         Type::Boolean => quote!(bool),
         Type::Optional { inner_type } => quote!($(generate_type(inner_type))?),
         Type::Sequence { inner_type } => quote!(List<$(generate_type(inner_type))>),
+        Type::Set { inner_type } => quote!(Set<$(generate_type(inner_type))>),
+        Type::Box { inner_type } => generate_type(inner_type),
         Type::Map { key_type, value_type } => {
             quote!(Map<$(generate_type(key_type)), $(generate_type(value_type))>)
         }
@@ -449,6 +451,40 @@ pub fn runtime_scaffolding(ci: &ComponentInterface) -> dart::Tokens {
                 } finally {
                     calloc.free(frameData);
                 }
+            }
+
+            // Lowers a `Uint8List` into a `ForeignBytes` for a borrowed `&[u8]`
+            // (`[ByRef] bytes`) argument. The Rust side only borrows the buffer
+            // for the duration of the call, so this is valid in argument
+            // position only (never lifted or read back). Dart's GC-managed
+            // `Uint8List` has no stable native address, so the bytes are copied
+            // into native memory allocated from the caller-supplied `alloc`.
+            // Both the struct and the copied buffer come from `alloc`, so the
+            // caller frees them by releasing that allocator (an `Arena` scoped
+            // around the FFI call) — no native memory leaks per call.
+            ForeignBytes lowerForeignBytes(Uint8List data, Allocator alloc) {
+                final length = data.length;
+                // `ForeignBytes.len` is an Int32; fail loudly rather than
+                // silently truncate a >2GiB buffer into a bogus length.
+                if (length > 0x7fffffff) {
+                    throw ArgumentError(
+                        "Uint8List too large for a borrowed &[u8] FFI argument: " + length.toString() + " bytes");
+                }
+                final bytes = alloc<ForeignBytes>();
+                if (length == 0) {
+                    // Empty slice: pass (null, 0). `alloc<Uint8>(0)` is
+                    // platform-variable (some allocators return null and make
+                    // `calloc` throw); Rust reads (null, 0) as `&[]`. Mirrors the
+                    // ByRef-bytes converters in uniffi's Kotlin/Python backends.
+                    bytes.ref.len = 0;
+                    bytes.ref.data = Pointer<Uint8>.fromAddress(0);
+                    return bytes.ref;
+                }
+                final Pointer<Uint8> frameData = alloc<Uint8>(length);
+                frameData.asTypedList(length).setAll(0, data);
+                bytes.ref.len = length;
+                bytes.ref.data = frameData;
+                return bytes.ref;
             }
 
             final class ForeignBytes extends Struct {

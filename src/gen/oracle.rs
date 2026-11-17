@@ -1,7 +1,9 @@
 use genco::lang::dart;
 use genco::quote;
 use heck::{ToLowerCamelCase, ToUpperCamelCase};
-use uniffi_bindgen::interface::{Argument, AsType, Callable, FfiType, Object, ObjectImpl, Type};
+use uniffi_bindgen::interface::{
+    Argument, AsType, Callable, FfiType, Object, ObjectImpl, TraitKind, Type,
+};
 use uniffi_bindgen::ComponentInterface;
 
 // use super::render::{AsRenderable, Renderable};
@@ -268,6 +270,12 @@ impl DartCodeOracle {
                     let inner = DartCodeOracle::dart_type_label(Some(inner_type));
                     quote!(List<$inner>)
                 }
+                Type::Set { inner_type } => {
+                    let inner = DartCodeOracle::dart_type_label(Some(inner_type));
+                    quote!(Set<$inner>)
+                }
+                // `Box<T>` is transparent across the FFI: it is `T` on the foreign side.
+                Type::Box { inner_type } => DartCodeOracle::dart_type_label(Some(inner_type)),
                 Type::Map { key_type, value_type, .. } => {
                     let key = DartCodeOracle::dart_type_label(Some(key_type));
                     let value = DartCodeOracle::dart_type_label(Some(value_type));
@@ -316,7 +324,9 @@ impl DartCodeOracle {
                     _ => quote!(RustBuffer),
                 },
                 Type::Sequence { .. } => quote!(RustBuffer),
+                Type::Set { .. } => quote!(RustBuffer),
                 Type::Map { .. } => quote!(RustBuffer),
+                Type::Box { inner_type } => Self::native_type_label(Some(inner_type)),
                 Type::Object { .. } => quote!(Pointer<Void>),
                 Type::Enum { .. } => quote!(Int32),
                 Type::Record { .. } => quote!(RustBuffer),
@@ -355,7 +365,9 @@ impl DartCodeOracle {
                     _ => quote!(RustBuffer),
                 },
                 Type::Sequence { .. } => quote!(RustBuffer),
+                Type::Set { .. } => quote!(RustBuffer),
                 Type::Map { .. } => quote!(RustBuffer),
+                Type::Box { inner_type } => Self::native_dart_type_label(Some(inner_type)),
                 Type::Object { .. } => quote!(Pointer<Void>),
                 Type::Enum { .. } => quote!(int),
                 Type::Record { .. } => quote!(RustBuffer),
@@ -540,11 +552,92 @@ impl DartCodeOracle {
 
     /// Lower argument with special handling for callback traits
     pub fn lower_arg_with_callback_handling(arg: &Argument) -> dart::Tokens {
+        // Borrowed `&[u8]` / `[ByRef] bytes` arguments take the `ForeignBytes`
+        // FFI path, not the owned `RustBuffer` path. uniffi 0.32 selects
+        // `FfiType::ForeignBytes` for these (see `Argument::is_borrowed_bytes`),
+        // so the FFI signature already expects `ForeignBytes`; lower the
+        // `Uint8List` into one instead of a `RustBuffer`. "Borrowed" is the
+        // Rust view (it borrows for the call rather than owning a RustBuffer);
+        // the emitted `lowerForeignBytes` still copies into native memory since
+        // a GC-managed `Uint8List` has no stable address. Mirrors the ByRef-bytes
+        // converter in uniffi's Kotlin/Python backends.
+        //
+        // The copy is allocated from `_uniffiArena` — an `Arena` the call site
+        // wraps around the FFI call (see `wrap_ffi_call_stmt`/`wrap_ffi_call_expr`)
+        // so the native memory is freed after the call instead of leaking. Any call
+        // site emitting a borrowed-bytes argument therefore has `_uniffiArena` in
+        // scope. The name is `_uniffi`-prefixed so it cannot collide with a
+        // host-supplied argument name (which are lower-camel-cased, never
+        // `_`-prefixed).
+        if arg.is_borrowed_bytes() {
+            return quote!(lowerForeignBytes($(Self::var_name(arg.name())), _uniffiArena));
+        }
         let base_lower = Self::type_lower_fn(&arg.as_type(), quote!($(Self::var_name(arg.name()))));
         match arg.as_type() {
-            Type::Object { imp: ObjectImpl::CallbackTrait, .. } => base_lower,
+            Type::Object {
+                imp: ObjectImpl::Trait(TraitKind::Both | TraitKind::ForeignOnly),
+                ..
+            } => base_lower,
             Type::CallbackInterface { .. } => quote!($base_lower.address),
             _ => base_lower,
+        }
+    }
+
+    /// True if any argument takes the borrowed `&[u8]` (`ForeignBytes`) path,
+    /// whose native copy the call site must free after the FFI call.
+    pub fn any_borrowed_bytes(args: &[&Argument]) -> bool {
+        args.iter().any(|a| a.is_borrowed_bytes())
+    }
+
+    /// Wrap a full FFI-call statement so the native copies of borrowed `&[u8]`
+    /// arguments (see `lower_arg_with_callback_handling`) are freed after the
+    /// call. `call` is the call expression, without `return`/`;`.
+    ///
+    /// When no argument is borrowed bytes this is exactly `return call;`, so
+    /// ordinary calls keep their previous shape with zero overhead. Otherwise an
+    /// `Arena` named `_uniffiArena` (which the lowering allocates from) wraps the
+    /// call:
+    /// - sync: `using` frees the arena on scope exit, including if the call
+    ///   throws — the Rust side only borrows for the duration of the call;
+    /// - async: the Rust future holds the borrow until it settles, so the arena
+    ///   is released via `whenComplete` after the returned future completes.
+    ///
+    /// NOTE: the async+borrowed-bytes combination is currently unreachable —
+    /// uniffi 0.32 rejects a borrowed `&[u8]` on an `async fn` (the returned
+    /// future would capture the raw pointer and is required to be `Send + 'static`,
+    /// which a borrow is not). The `is_async` arm is therefore defensive: it keeps
+    /// the free correct-by-construction if uniffi ever gains owned-copy async
+    /// by-ref support, rather than silently leaking.
+    pub fn wrap_ffi_call_stmt(
+        has_borrowed: bool,
+        is_async: bool,
+        call: dart::Tokens,
+    ) -> dart::Tokens {
+        if !has_borrowed {
+            return quote!(return $call;);
+        }
+        if is_async {
+            quote! {
+                final _uniffiArena = Arena();
+                return $call.whenComplete(_uniffiArena.releaseAll);
+            }
+        } else {
+            quote! {
+                return using((Arena _uniffiArena) {
+                    return $call;
+                });
+            }
+        }
+    }
+
+    /// Expression form of [`wrap_ffi_call_stmt`] for constructor initializer
+    /// lists (`_ptr = <expr>`), which cannot host statements. Sync only — the
+    /// async constructor uses the statement form.
+    pub fn wrap_ffi_call_expr(has_borrowed: bool, call: dart::Tokens) -> dart::Tokens {
+        if has_borrowed {
+            quote!(using((Arena _uniffiArena) => $call))
+        } else {
+            call
         }
     }
 
@@ -669,9 +762,14 @@ impl<T: AsType> AsCodeType for T {
             Type::Sequence { inner_type } => {
                 Box::new(compounds::SequenceCodeType::new(self.as_type(), *inner_type))
             }
+            Type::Set { inner_type } => {
+                Box::new(compounds::SetCodeType::new(self.as_type(), *inner_type))
+            }
             Type::Map { key_type, value_type, .. } => {
                 Box::new(compounds::MapCodeType::new(self.as_type(), *key_type, *value_type))
             }
+            // `Box<T>` is transparent across the FFI: lift, lower and name it as `T`.
+            Type::Box { inner_type } => inner_type.as_codetype(),
             Type::Enum { name, .. } => Box::new(enums::EnumCodeType::new(name)),
             Type::Record { name, .. } => Box::new(records::RecordCodeType::new(name)),
             Type::CallbackInterface { name, .. } => {
