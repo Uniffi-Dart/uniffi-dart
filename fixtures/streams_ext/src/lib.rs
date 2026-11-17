@@ -184,8 +184,8 @@ mod tests {
             assert!(result.iter().any(|s| s.starts_with("Fibonacci:")));
 
             // Check specific items
-            assert!(result.contains(&"Count: 0".to_string()));
-            assert!(result.contains(&"Fibonacci: 3".to_string()));
+            assert!(result.iter().any(|s| s == "Count: 0"));
+            assert!(result.iter().any(|s| s == "Fibonacci: 3"));
         });
     }
 
