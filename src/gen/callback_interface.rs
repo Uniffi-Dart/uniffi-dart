@@ -158,6 +158,7 @@ pub fn generate_callback_interface(
                 $lower_rust_impl
                 _ensureVTableInitialized();
                 final handle = _handleMap.insert(value);
+                UniffiArgumentScope.current?.own((_) { _handleMap.remove(handle); });
                 return Pointer<Void>.fromAddress($(if type_helper.callback_dispatch() { $(format!("_uniffiRegister{}", cls_name))(handle) } else { handle }));
             }
 
