@@ -1,0 +1,21 @@
+[package]
+name = "enum_field_type_names"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "enum_field_type_names"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+uniffi = { workspace = true, features = ["build"] }
+thiserror = "2"
+
+[build-dependencies]
+uniffi-dart = { path = "../../", features = ["build"] }
+
+[dev-dependencies]
+uniffi-dart = { path = "../../", features = ["bindgen-tests"] }
+uniffi = { workspace = true, features = ["bindgen-tests"] }
+anyhow = "1"
