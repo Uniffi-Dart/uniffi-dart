@@ -14,7 +14,7 @@ fn take_bytes_by_ref(v: &[u8]) -> Vec<u8> {
 fn take_bytes_with_validation(v: Vec<u8>) -> Vec<u8> {
     // Validate that it's valid UTF-8 if it should be
     if let Ok(s) = std::str::from_utf8(&v) {
-        println!("Valid UTF-8 string: {}", s);
+        println!("Valid UTF-8 string: {s}");
     }
     v
 }
