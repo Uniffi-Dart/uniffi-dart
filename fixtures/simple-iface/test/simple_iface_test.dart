@@ -1,7 +1,13 @@
 import 'package:test/test.dart';
+
 import '../simple_iface.dart';
+import 'handle_cases.dart';
 
 void main() {
+  test(
+    'fixed-width handles across objects, callbacks, traits and futures',
+    runHandleCases,
+  );
   group('SimpleIface', () {
     test('basic object creation and method calls', () {
       final obj = makeObject(inner: 9000);
